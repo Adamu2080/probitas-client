@@ -1,0 +1,241 @@
+import type { SqlQueryResult } from "./result.ts";
+import type { SqlRows } from "./rows.ts";
+
+/**
+ * Expectation interface for SQL query results.
+ * All methods return `this` for chaining.
+ */
+export interface SqlQueryResultExpectation<T> {
+  /** Verify query succeeded */
+  ok(): this;
+
+  /** Verify query failed */
+  notOk(): this;
+
+  /** Verify result has no rows */
+  noContent(): this;
+
+  /** Verify result has rows */
+  hasContent(): this;
+
+  /** Verify exact row count */
+  rows(count: number): this;
+
+  /** Verify minimum row count */
+  rowsAtLeast(count: number): this;
+
+  /** Verify maximum row count */
+  rowsAtMost(count: number): this;
+
+  /** Verify exact affected row count */
+  rowCount(count: number): this;
+
+  /** Verify minimum affected row count */
+  rowCountAtLeast(count: number): this;
+
+  /** Verify maximum affected row count */
+  rowCountAtMost(count: number): this;
+
+  /** Verify a row contains the given subset */
+  rowContains(subset: Partial<T>): this;
+
+  /** Custom row validation */
+  rowMatch(matcher: (rows: SqlRows<T>) => void): this;
+
+  /** Verify mapped data contains the given subset */
+  mapContains<U>(mapper: (row: T) => U, subset: Partial<U>): this;
+
+  /** Custom mapped data validation */
+  mapMatch<U>(mapper: (row: T) => U, matcher: (mapped: U[]) => void): this;
+
+  /** Verify instance contains the given subset */
+  asContains<U>(ctor: new (row: T) => U, subset: Partial<U>): this;
+
+  /** Custom instance validation */
+  asMatch<U>(ctor: new (row: T) => U, matcher: (instances: U[]) => void): this;
+
+  /** Verify exact lastInsertId */
+  lastInsertId(expected: bigint | string): this;
+
+  /** Verify lastInsertId is present */
+  hasLastInsertId(): this;
+
+  /** Verify query duration is below threshold */
+  durationLessThan(ms: number): this;
+}
+
+/**
+ * Implementation of SqlQueryResultExpectation.
+ */
+class SqlQueryResultExpectationImpl<T> implements SqlQueryResultExpectation<T> {
+  constructor(private readonly result: SqlQueryResult<T>) {}
+
+  ok(): this {
+    if (!this.result.ok) {
+      throw new Error("Expected query to succeed");
+    }
+    return this;
+  }
+
+  notOk(): this {
+    if (this.result.ok) {
+      throw new Error("Expected query to fail");
+    }
+    return this;
+  }
+
+  noContent(): this {
+    if (this.result.rows.length > 0) {
+      throw new Error(`Expected no rows, got ${this.result.rows.length}`);
+    }
+    return this;
+  }
+
+  hasContent(): this {
+    if (this.result.rows.length === 0) {
+      throw new Error("Expected rows to be present");
+    }
+    return this;
+  }
+
+  rows(count: number): this {
+    if (this.result.rows.length !== count) {
+      throw new Error(
+        `Expected ${count} rows, got ${this.result.rows.length}`,
+      );
+    }
+    return this;
+  }
+
+  rowsAtLeast(count: number): this {
+    if (this.result.rows.length < count) {
+      throw new Error(
+        `Expected at least ${count} rows, got ${this.result.rows.length}`,
+      );
+    }
+    return this;
+  }
+
+  rowsAtMost(count: number): this {
+    if (this.result.rows.length > count) {
+      throw new Error(
+        `Expected at most ${count} rows, got ${this.result.rows.length}`,
+      );
+    }
+    return this;
+  }
+
+  rowCount(count: number): this {
+    if (this.result.rowCount !== count) {
+      throw new Error(
+        `Expected rowCount ${count}, got ${this.result.rowCount}`,
+      );
+    }
+    return this;
+  }
+
+  rowCountAtLeast(count: number): this {
+    if (this.result.rowCount < count) {
+      throw new Error(
+        `Expected rowCount at least ${count}, got ${this.result.rowCount}`,
+      );
+    }
+    return this;
+  }
+
+  rowCountAtMost(count: number): this {
+    if (this.result.rowCount > count) {
+      throw new Error(
+        `Expected rowCount at most ${count}, got ${this.result.rowCount}`,
+      );
+    }
+    return this;
+  }
+
+  rowContains(subset: Partial<T>): this {
+    const found = this.result.rows.find((row) =>
+      this.containsSubset(row, subset)
+    );
+    if (!found) {
+      throw new Error("No row contains the expected subset");
+    }
+    return this;
+  }
+
+  rowMatch(matcher: (rows: SqlRows<T>) => void): this {
+    matcher(this.result.rows);
+    return this;
+  }
+
+  mapContains<U>(mapper: (row: T) => U, subset: Partial<U>): this {
+    const mapped = this.result.map(mapper);
+    const found = mapped.find((item) => this.containsSubset(item, subset));
+    if (!found) {
+      throw new Error("No mapped row contains the expected subset");
+    }
+    return this;
+  }
+
+  mapMatch<U>(mapper: (row: T) => U, matcher: (mapped: U[]) => void): this {
+    const mapped = this.result.map(mapper);
+    matcher(mapped);
+    return this;
+  }
+
+  asContains<U>(ctor: new (row: T) => U, subset: Partial<U>): this {
+    const instances = this.result.as(ctor);
+    const found = instances.find((item) => this.containsSubset(item, subset));
+    if (!found) {
+      throw new Error("No instance contains the expected subset");
+    }
+    return this;
+  }
+
+  asMatch<U>(ctor: new (row: T) => U, matcher: (instances: U[]) => void): this {
+    const instances = this.result.as(ctor);
+    matcher(instances);
+    return this;
+  }
+
+  lastInsertId(expected: bigint | string): this {
+    const actual = this.result.metadata.lastInsertId;
+    if (actual !== expected) {
+      throw new Error(`Expected lastInsertId ${expected}, got ${actual}`);
+    }
+    return this;
+  }
+
+  hasLastInsertId(): this {
+    if (this.result.metadata.lastInsertId === undefined) {
+      throw new Error("Expected lastInsertId to be present");
+    }
+    return this;
+  }
+
+  durationLessThan(ms: number): this {
+    if (this.result.duration >= ms) {
+      throw new Error(
+        `Expected duration < ${ms}ms, got ${this.result.duration}ms`,
+      );
+    }
+    return this;
+  }
+
+  private containsSubset<V>(obj: V, subset: Partial<V>): boolean {
+    for (const key of Object.keys(subset) as (keyof V)[]) {
+      if (obj[key] !== subset[key]) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+/**
+ * Create an expectation for a SQL query result.
+ */
+export function expectSqlQueryResult<T = Record<string, unknown>>(
+  result: SqlQueryResult<T>,
+): SqlQueryResultExpectation<T> {
+  return new SqlQueryResultExpectationImpl(result);
+}
