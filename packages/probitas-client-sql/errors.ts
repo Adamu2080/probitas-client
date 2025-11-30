@@ -1,0 +1,76 @@
+import { ClientError } from "@probitas/client";
+
+/**
+ * SQL-specific error kinds.
+ */
+export type SqlErrorKind =
+  | "query"
+  | "constraint"
+  | "deadlock"
+  | "unknown";
+
+/**
+ * Options for SqlError constructor.
+ */
+export interface SqlErrorOptions extends ErrorOptions {
+  /** SQL State code (e.g., "23505" for unique violation) */
+  readonly sqlState?: string;
+}
+
+/**
+ * Base error class for SQL-specific errors.
+ * Extends ClientError with SQL-specific properties.
+ */
+export class SqlError extends ClientError {
+  override readonly name: string = "SqlError";
+  override readonly kind: SqlErrorKind;
+  readonly sqlState?: string;
+
+  constructor(
+    message: string,
+    kind: SqlErrorKind,
+    options?: SqlErrorOptions,
+  ) {
+    super(message, kind, options);
+    this.kind = kind;
+    this.sqlState = options?.sqlState;
+  }
+}
+
+/**
+ * Error thrown when a SQL query has syntax errors.
+ */
+export class QuerySyntaxError extends SqlError {
+  override readonly name = "QuerySyntaxError";
+  override readonly kind = "query" as const;
+
+  constructor(message: string, options?: SqlErrorOptions) {
+    super(message, "query", options);
+  }
+}
+
+/**
+ * Error thrown when a constraint violation occurs.
+ */
+export class ConstraintError extends SqlError {
+  override readonly name = "ConstraintError";
+  override readonly kind = "constraint" as const;
+  readonly constraint: string;
+
+  constructor(message: string, constraint: string, options?: SqlErrorOptions) {
+    super(message, "constraint", options);
+    this.constraint = constraint;
+  }
+}
+
+/**
+ * Error thrown when a deadlock is detected.
+ */
+export class DeadlockError extends SqlError {
+  override readonly name = "DeadlockError";
+  override readonly kind = "deadlock" as const;
+
+  constructor(message: string, options?: SqlErrorOptions) {
+    super(message, "deadlock", options);
+  }
+}
