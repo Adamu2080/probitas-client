@@ -352,5 +352,38 @@ Deno.test({
         await client.close();
       }
     });
+
+    await t.step("EchoWithTrailers - verify trailing metadata", async () => {
+      const client = await createGrpcClient({
+        address: GRPC_ADDRESS,
+        schema: PROTO_PATH,
+      });
+
+      try {
+        const response = await client.call("echo.v1.Echo/EchoWithTrailers", {
+          message: "Trailers test",
+          trailers: {
+            "x-custom-trailer": "custom-value",
+            "x-request-id": "req-456",
+          },
+        });
+
+        expectGrpcResponse(response)
+          .ok()
+          .hasContent()
+          .trailersExist("x-custom-trailer")
+          .trailers("x-custom-trailer", "custom-value")
+          .trailers("x-request-id", "req-456");
+
+        const data = response.json<{ message: string }>();
+        assertEquals(data?.message, "Trailers test");
+
+        // Also verify trailers are accessible directly
+        assertEquals(response.trailers["x-custom-trailer"], "custom-value");
+        assertEquals(response.trailers["x-request-id"], "req-456");
+      } finally {
+        await client.close();
+      }
+    });
   },
 });

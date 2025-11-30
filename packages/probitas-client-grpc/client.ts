@@ -465,24 +465,52 @@ class GrpcClientImpl<TService> implements GrpcClient<TService> {
         return;
       }
 
-      methodFn.call(
+      // Track state for coordinating callback and status event
+      // deno-lint-ignore no-explicit-any
+      let pendingResponse: any = null;
+      let trailers: Record<string, string> = {};
+      let statusReceived = false;
+      let callbackReceived = false;
+
+      const tryResolve = () => {
+        // Only resolve when both callback and status event have been received
+        if (!callbackReceived || !statusReceived) return;
+
+        const duration = performance.now() - startTime;
+        const body = pendingResponse
+          ? new TextEncoder().encode(JSON.stringify(pendingResponse))
+          : null;
+
+        resolve(
+          new GrpcResponseImpl({
+            code: 0,
+            message: "",
+            body,
+            trailers,
+            duration,
+            deserializer: () => pendingResponse,
+          }),
+        );
+      };
+
+      const call = methodFn.call(
         client,
         request,
         metadata,
         callOptions,
         // deno-lint-ignore no-explicit-any
         (error: grpc.ServiceError | null, response: any) => {
-          const duration = performance.now() - startTime;
-
           if (error) {
+            const duration = performance.now() - startTime;
             const code = (error.code ?? 2) as GrpcStatusCode;
             const errorMessage = error.message ?? "Unknown error";
-            const errorMetadata = error.metadata
+            // On error, trailing metadata comes from error.metadata
+            const errorTrailers = error.metadata
               ? metadataToRecord(error.metadata)
               : {};
 
             if (throwOnError) {
-              reject(createGrpcError(code, errorMessage, errorMetadata));
+              reject(createGrpcError(code, errorMessage, errorTrailers));
               return;
             }
 
@@ -491,7 +519,7 @@ class GrpcClientImpl<TService> implements GrpcClient<TService> {
                 code,
                 message: errorMessage,
                 body: null,
-                metadata: errorMetadata,
+                trailers: errorTrailers,
                 duration,
                 deserializer: (bytes) => {
                   const text = new TextDecoder().decode(bytes);
@@ -502,22 +530,21 @@ class GrpcClientImpl<TService> implements GrpcClient<TService> {
             return;
           }
 
-          const body = response
-            ? new TextEncoder().encode(JSON.stringify(response))
-            : null;
-
-          resolve(
-            new GrpcResponseImpl({
-              code: 0,
-              message: "",
-              body,
-              metadata: {},
-              duration,
-              deserializer: () => response,
-            }),
-          );
+          // Success: store response and wait for status event
+          pendingResponse = response;
+          callbackReceived = true;
+          tryResolve();
         },
-      );
+      ) as grpc.ClientUnaryCall;
+
+      // Listen for status event to capture trailing metadata
+      call.on("status", (status: grpc.StatusObject) => {
+        if (status.metadata) {
+          trailers = metadataToRecord(status.metadata);
+        }
+        statusReceived = true;
+        tryResolve();
+      });
     });
   }
 
@@ -589,19 +616,19 @@ class GrpcClientImpl<TService> implements GrpcClient<TService> {
       if (item.type === "error") {
         const code = (item.error?.code ?? 2) as GrpcStatusCode;
         const errorMessage = item.error?.message ?? "Unknown error";
-        const errorMetadata = item.error?.metadata
+        const errorTrailers = item.error?.metadata
           ? metadataToRecord(item.error.metadata)
           : {};
 
         if (throwOnError) {
-          throw createGrpcError(code, errorMessage, errorMetadata);
+          throw createGrpcError(code, errorMessage, errorTrailers);
         }
 
         yield new GrpcResponseImpl({
           code,
           message: errorMessage,
           body: null,
-          metadata: errorMetadata,
+          trailers: errorTrailers,
           duration,
         });
         break;
@@ -615,7 +642,7 @@ class GrpcClientImpl<TService> implements GrpcClient<TService> {
         code: 0,
         message: "",
         body,
-        metadata: {},
+        trailers: {},
         duration,
         deserializer: () => item.value,
       });
@@ -652,12 +679,12 @@ class GrpcClientImpl<TService> implements GrpcClient<TService> {
           if (error) {
             const code = (error.code ?? 2) as GrpcStatusCode;
             const errorMessage = error.message ?? "Unknown error";
-            const errorMetadata = error.metadata
+            const errorTrailers = error.metadata
               ? metadataToRecord(error.metadata)
               : {};
 
             if (throwOnError) {
-              reject(createGrpcError(code, errorMessage, errorMetadata));
+              reject(createGrpcError(code, errorMessage, errorTrailers));
               return;
             }
 
@@ -666,7 +693,7 @@ class GrpcClientImpl<TService> implements GrpcClient<TService> {
                 code,
                 message: errorMessage,
                 body: null,
-                metadata: errorMetadata,
+                trailers: errorTrailers,
                 duration,
               }),
             );
@@ -682,7 +709,7 @@ class GrpcClientImpl<TService> implements GrpcClient<TService> {
               code: 0,
               message: "",
               body,
-              metadata: {},
+              trailers: {},
               duration,
               deserializer: () => response,
             }),
@@ -782,19 +809,19 @@ class GrpcClientImpl<TService> implements GrpcClient<TService> {
       if (item.type === "error") {
         const code = (item.error?.code ?? 2) as GrpcStatusCode;
         const errorMessage = item.error?.message ?? "Unknown error";
-        const errorMetadata = item.error?.metadata
+        const errorTrailers = item.error?.metadata
           ? metadataToRecord(item.error.metadata)
           : {};
 
         if (throwOnError) {
-          throw createGrpcError(code, errorMessage, errorMetadata);
+          throw createGrpcError(code, errorMessage, errorTrailers);
         }
 
         yield new GrpcResponseImpl({
           code,
           message: errorMessage,
           body: null,
-          metadata: errorMetadata,
+          trailers: errorTrailers,
           duration,
         });
         break;
@@ -808,7 +835,7 @@ class GrpcClientImpl<TService> implements GrpcClient<TService> {
         code: 0,
         message: "",
         body,
-        metadata: {},
+        trailers: {},
         duration,
         deserializer: () => item.value,
       });
