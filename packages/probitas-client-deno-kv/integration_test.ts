@@ -22,14 +22,14 @@ const DENOKV_URL = Deno.env.get("DENOKV_URL") ?? "http://localhost:4512";
 
 /**
  * Check if denokv server is available for integration testing.
+ * Uses HTTP fetch to avoid Deno.openKv's internal retry mechanism.
  */
 async function isDenoKvAvailable(): Promise<boolean> {
-  // Set access token for denokv connection
-  Deno.env.set("DENO_KV_ACCESS_TOKEN", "testtoken1234");
-
   try {
-    const client = await createDenoKvClient({ path: DENOKV_URL });
-    await client.close();
+    const res = await fetch(DENOKV_URL, {
+      signal: AbortSignal.timeout(1000),
+    });
+    await res.body?.cancel();
     return true;
   } catch {
     return false;
