@@ -180,6 +180,7 @@ deno task check       # Type check all files
 deno task test        # Run tests (parallel, shuffled)
 deno task test:coverage  # Run tests with coverage
 deno task coverage    # Generate coverage report
+deno task verify      # Run fmt, lint, type check, and tests
 ```
 
 ## Development Environment
@@ -223,10 +224,7 @@ Examples requiring backup:
 errors/warnings:**
 
 ```bash
-deno fmt
-deno lint
-deno task check
-deno task test
+deno task verify
 ```
 
 ### 4. English for Version-Controlled Content
