@@ -65,6 +65,24 @@ probitas-client/
 4. **Probitas integration** - All clients implement `AsyncDisposable`
 5. **Test-friendly** - Generic methods like `json<T = any>()` for type hints
 
+### Type Parameter Defaults: `any` vs `unknown`
+
+Use `any` only for user-facing APIs where test convenience matters. Use
+`unknown` for internal implementations and input parameters.
+
+**Use `any` (with `// deno-lint-ignore no-explicit-any`):**
+
+- Response data methods: `json<T = any>()`, `data<T = any>()`
+- Expectation methods: `jsonContains<T = any>()`, `jsonMatch<T = any>()`
+- Query result types: `SqlQueryResult<T = Record<string, any>>`
+
+**Use `unknown`:**
+
+- Internal helpers: `containsSubset(obj: unknown, ...)`
+- Input parameters: `params?: unknown[]`
+- Service type parameters: `GrpcClient<TService = unknown>`
+- Internal caches and deserializers
+
 ### Implementation Style (T-Wada Style)
 
 Follow test-driven development principles:
