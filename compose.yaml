@@ -30,3 +30,28 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # MySQL server for integration testing
+  mysql:
+    image: mysql:8.0
+    ports:
+      - "13306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: testpassword
+    healthcheck:
+      test: [
+        "CMD",
+        "mysqladmin",
+        "ping",
+        "-h",
+        "localhost",
+        "-u",
+        "root",
+        "-prootpassword",
+      ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
