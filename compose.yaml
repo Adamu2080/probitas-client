@@ -121,3 +121,17 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # LocalStack for AWS services (SQS) integration testing
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: sqs
+      DEBUG: 0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
