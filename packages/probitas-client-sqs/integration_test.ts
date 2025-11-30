@@ -1,0 +1,357 @@
+import { assertEquals, assertInstanceOf, assertRejects } from "@std/assert";
+import {
+  CreateQueueCommand,
+  DeleteQueueCommand,
+  SQSClient,
+} from "@aws-sdk/client-sqs";
+import { AbortError } from "@probitas/client";
+import { createSqsClient } from "./client.ts";
+import {
+  expectSqsDeleteResult,
+  expectSqsMessage,
+  expectSqsReceiveResult,
+  expectSqsSendBatchResult,
+  expectSqsSendResult,
+} from "./expect.ts";
+import { SqsCommandError } from "./errors.ts";
+
+const SQS_ENDPOINT = Deno.env.get("SQS_ENDPOINT") ?? "http://localhost:4566";
+const SQS_REGION = "us-east-1";
+
+async function isSqsAvailable(): Promise<boolean> {
+  try {
+    const response = await fetch(`${SQS_ENDPOINT}/_localstack/health`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    await response.body?.cancel();
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function createTestQueue(
+  name: string,
+): Promise<{ queueUrl: string; cleanup: () => Promise<void> }> {
+  const sqsClient = new SQSClient({
+    endpoint: SQS_ENDPOINT,
+    region: SQS_REGION,
+    credentials: {
+      accessKeyId: "test",
+      secretAccessKey: "test",
+    },
+  });
+
+  const result = await sqsClient.send(
+    new CreateQueueCommand({ QueueName: name }),
+  );
+  const queueUrl = result.QueueUrl!;
+
+  return {
+    queueUrl,
+    cleanup: async () => {
+      try {
+        await sqsClient.send(new DeleteQueueCommand({ QueueUrl: queueUrl }));
+      } finally {
+        sqsClient.destroy();
+      }
+    },
+  };
+}
+
+Deno.test({
+  name: "Integration: SQS Client",
+  ignore: !(await isSqsAvailable()),
+  async fn(t) {
+    const testQueueName = `test-queue-${crypto.randomUUID()}`;
+    const { queueUrl, cleanup } = await createTestQueue(testQueueName);
+
+    const client = await createSqsClient({
+      endpoint: SQS_ENDPOINT,
+      region: SQS_REGION,
+      queueUrl,
+      credentials: {
+        accessKeyId: "test",
+        secretAccessKey: "test",
+      },
+    });
+
+    try {
+      await t.step("implements AsyncDisposable", () => {
+        assertEquals(typeof client[Symbol.asyncDispose], "function");
+      });
+
+      await t.step("exposes config", () => {
+        assertEquals(client.config.queueUrl, queueUrl);
+        assertEquals(client.config.region, SQS_REGION);
+      });
+
+      await t.step("Message operations", async (t) => {
+        await t.step("send sends a message", async () => {
+          const result = await client.send(
+            JSON.stringify({ type: "TEST", value: 42 }),
+          );
+          expectSqsSendResult(result).ok().hasMessageId();
+        });
+
+        await t.step("receive retrieves messages", async () => {
+          const result = await client.receive({
+            maxMessages: 10,
+            waitTimeSeconds: 1,
+          });
+          expectSqsReceiveResult(result).ok().hasContent();
+
+          const msg = result.messages.first()!;
+          expectSqsMessage(msg)
+            .bodyContains("TEST")
+            .bodyJsonContains({ type: "TEST" });
+
+          const body = JSON.parse(msg.body);
+          assertEquals(body.type, "TEST");
+          assertEquals(body.value, 42);
+        });
+
+        await t.step("delete removes a message", async () => {
+          const receiveResult = await client.receive({
+            maxMessages: 1,
+            waitTimeSeconds: 1,
+          });
+
+          if (receiveResult.messages.length > 0) {
+            const msg = receiveResult.messages.firstOrThrow();
+            const deleteResult = await client.delete(msg.receiptHandle);
+            expectSqsDeleteResult(deleteResult).ok();
+          }
+        });
+
+        await t.step(
+          "receive returns empty array when queue is empty",
+          async () => {
+            await client.purge();
+            await new Promise((r) => setTimeout(r, 100));
+
+            const result = await client.receive({
+              maxMessages: 1,
+              waitTimeSeconds: 0,
+            });
+            expectSqsReceiveResult(result).ok().noContent();
+          },
+        );
+      });
+
+      await t.step("Batch operations", async (t) => {
+        await t.step("sendBatch sends multiple messages", async () => {
+          const result = await client.sendBatch([
+            { id: "0", body: "batch-msg-1" },
+            { id: "1", body: "batch-msg-2" },
+            { id: "2", body: "batch-msg-3" },
+          ]);
+          expectSqsSendBatchResult(result).ok().allSuccessful().successfulCount(
+            3,
+          );
+        });
+
+        await t.step("deleteBatch removes multiple messages", async () => {
+          const receiveResult = await client.receive({
+            maxMessages: 10,
+            waitTimeSeconds: 1,
+          });
+
+          if (receiveResult.messages.length > 0) {
+            const handles = receiveResult.messages.map((m) => m.receiptHandle);
+            const deleteResult = await client.deleteBatch(handles);
+            assertEquals(deleteResult.ok, true);
+            assertEquals(deleteResult.failed.length, 0);
+          }
+        });
+      });
+
+      await t.step("Message with attributes", async (t) => {
+        await client.purge();
+        await new Promise((r) => setTimeout(r, 100));
+
+        await t.step("send with message attributes", async () => {
+          const result = await client.send(
+            "test message with attributes",
+            {
+              messageAttributes: {
+                priority: { dataType: "String", stringValue: "high" },
+                count: { dataType: "Number", stringValue: "100" },
+              },
+            },
+          );
+          expectSqsSendResult(result).ok();
+        });
+
+        await t.step("receive retrieves message attributes", async () => {
+          const result = await client.receive({
+            maxMessages: 1,
+            waitTimeSeconds: 1,
+            messageAttributeNames: ["All"],
+          });
+          expectSqsReceiveResult(result).ok().hasContent();
+
+          const msg = result.messages.firstOrThrow();
+          assertEquals(msg.messageAttributes?.priority?.stringValue, "high");
+          assertEquals(msg.messageAttributes?.count?.stringValue, "100");
+
+          await client.delete(msg.receiptHandle);
+        });
+      });
+
+      await t.step("Delayed messages", async (t) => {
+        await client.purge();
+        await new Promise((r) => setTimeout(r, 100));
+
+        await t.step("send with delay", async () => {
+          const result = await client.send("delayed message", {
+            delaySeconds: 1,
+          });
+          expectSqsSendResult(result).ok();
+
+          const immediateResult = await client.receive({
+            maxMessages: 1,
+            waitTimeSeconds: 0,
+          });
+          expectSqsReceiveResult(immediateResult).ok().noContent();
+
+          await new Promise((r) => setTimeout(r, 1500));
+
+          const delayedResult = await client.receive({
+            maxMessages: 1,
+            waitTimeSeconds: 1,
+          });
+          expectSqsReceiveResult(delayedResult).ok().hasContent();
+          expectSqsMessage(delayedResult.messages.firstOrThrow()).bodyContains(
+            "delayed",
+          );
+
+          await client.delete(
+            delayedResult.messages.firstOrThrow().receiptHandle,
+          );
+        });
+      });
+
+      await t.step("SqsMessages helpers", async (t) => {
+        await client.purge();
+        await new Promise((r) => setTimeout(r, 100));
+
+        await client.send("first-message");
+        await client.send("second-message");
+        await client.send("third-message");
+
+        await t.step("first() and last() work correctly", async () => {
+          const result = await client.receive({
+            maxMessages: 10,
+            waitTimeSeconds: 1,
+          });
+
+          assertEquals(result.messages.first() !== undefined, true);
+          assertEquals(result.messages.last() !== undefined, true);
+          assertEquals(result.messages.length >= 1, true);
+
+          for (const msg of result.messages) {
+            await client.delete(msg.receiptHandle);
+          }
+        });
+
+        await t.step(
+          "firstOrThrow() throws when empty",
+          async () => {
+            await client.purge();
+            await new Promise((r) => setTimeout(r, 100));
+
+            const result = await client.receive({
+              maxMessages: 1,
+              waitTimeSeconds: 0,
+            });
+
+            try {
+              result.messages.firstOrThrow();
+              throw new Error("Should have thrown");
+            } catch (e) {
+              assertInstanceOf(e, Error);
+              assertEquals(e.message, "No messages available");
+            }
+          },
+        );
+      });
+
+      await t.step("CommonOptions support", async (t) => {
+        await t.step("receive with signal option succeeds", async () => {
+          const controller = new AbortController();
+          const result = await client.receive({
+            signal: controller.signal,
+            waitTimeSeconds: 0,
+          });
+          expectSqsReceiveResult(result).ok();
+        });
+
+        await t.step(
+          "operation throws AbortError when signal is aborted",
+          async () => {
+            const controller = new AbortController();
+            controller.abort();
+
+            const error = await assertRejects(
+              () =>
+                client.receive({
+                  signal: controller.signal,
+                }),
+              AbortError,
+            );
+            assertInstanceOf(error, AbortError);
+          },
+        );
+      });
+
+      await t.step("Closed client throws error", async () => {
+        const tempClient = await createSqsClient({
+          endpoint: SQS_ENDPOINT,
+          region: SQS_REGION,
+          queueUrl,
+          credentials: {
+            accessKeyId: "test",
+            secretAccessKey: "test",
+          },
+        });
+        await tempClient.close();
+
+        await assertRejects(
+          () => tempClient.send("test"),
+          SqsCommandError,
+        );
+      });
+
+      await t.step("Handles multiple messages", async () => {
+        const messages = ["msg1", "msg2", "msg3", "msg4", "msg5"];
+        for (const msg of messages) {
+          await client.send(msg);
+        }
+
+        const received: string[] = [];
+        let iterations = 0;
+        const maxIterations = 10;
+
+        while (received.length < 5 && iterations < maxIterations) {
+          const result = await client.receive({
+            maxMessages: 10,
+            waitTimeSeconds: 5,
+          });
+
+          for (const msg of result.messages) {
+            received.push(msg.body);
+            await client.delete(msg.receiptHandle);
+          }
+          iterations++;
+        }
+
+        assertEquals(received.length, 5);
+        assertEquals(received.sort(), messages.sort());
+      });
+    } finally {
+      await client.close();
+      await cleanup();
+    }
+  },
+});

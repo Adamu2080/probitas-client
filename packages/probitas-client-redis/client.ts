@@ -102,7 +102,7 @@ async function withOptions<T>(
 export async function createRedisClient(
   config: RedisClientConfig,
 ): Promise<RedisClient> {
-  let redis: RedisInstance;
+  let redis: RedisInstance | undefined;
 
   try {
     if (config.url) {
@@ -123,6 +123,9 @@ export async function createRedisClient(
 
     await redis.connect();
   } catch (error) {
+    if (redis) {
+      redis.disconnect();
+    }
     throw new RedisConnectionError(
       `Failed to connect to Redis: ${
         error instanceof Error ? error.message : String(error)

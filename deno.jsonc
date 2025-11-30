@@ -12,7 +12,8 @@
     "./packages/probitas-client-sql-duckdb",
     "./packages/probitas-client-sql-mysql",
     "./packages/probitas-client-sql-postgres",
-    "./packages/probitas-client-sql-sqlite"
+    "./packages/probitas-client-sql-sqlite",
+    "./packages/probitas-client-sqs"
   ],
   "unstable": ["kv"],
   "exclude": [
@@ -43,6 +44,7 @@
     "jsr:@probitas/client-sql-duckdb@^0": "./packages/probitas-client-sql-duckdb/mod.ts",
     "jsr:@probitas/client-sql-mysql@^0": "./packages/probitas-client-sql-mysql/mod.ts",
     "jsr:@probitas/client-sql-postgres@^0": "./packages/probitas-client-sql-postgres/mod.ts",
-    "jsr:@probitas/client-sql-sqlite@^0": "./packages/probitas-client-sql-sqlite/mod.ts"
+    "jsr:@probitas/client-sql-sqlite@^0": "./packages/probitas-client-sql-sqlite/mod.ts",
+    "jsr:@probitas/client-sqs@^0": "./packages/probitas-client-sqs/mod.ts"
   }
 }

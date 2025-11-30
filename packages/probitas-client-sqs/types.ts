@@ -1,0 +1,206 @@
+import type { CommonOptions } from "@probitas/client";
+
+/**
+ * SQS client configuration.
+ */
+export interface SqsClientConfig extends CommonOptions {
+  /** AWS region */
+  readonly region: string;
+  /** AWS credentials */
+  readonly credentials?: {
+    readonly accessKeyId: string;
+    readonly secretAccessKey: string;
+  };
+  /** SQS queue URL */
+  readonly queueUrl: string;
+  /** SQS endpoint URL (e.g., http://localhost:4566 for LocalStack) */
+  readonly endpoint?: string;
+}
+
+/**
+ * SQS message attributes.
+ */
+export interface SqsMessageAttribute {
+  readonly dataType: "String" | "Number" | "Binary";
+  readonly stringValue?: string;
+  readonly binaryValue?: Uint8Array;
+}
+
+/**
+ * SQS message received from a queue.
+ */
+export interface SqsMessage {
+  readonly messageId: string;
+  readonly body: string;
+  readonly receiptHandle: string;
+  readonly attributes: Record<string, string>;
+  readonly messageAttributes?: Record<string, SqsMessageAttribute>;
+  readonly md5OfBody: string;
+}
+
+/**
+ * Message array with helper methods.
+ */
+export interface SqsMessages extends ReadonlyArray<SqsMessage> {
+  /** Get the first message or undefined if empty */
+  first(): SqsMessage | undefined;
+  /** Get the first message or throw if empty */
+  firstOrThrow(): SqsMessage;
+  /** Get the last message or undefined if empty */
+  last(): SqsMessage | undefined;
+  /** Get the last message or throw if empty */
+  lastOrThrow(): SqsMessage;
+}
+
+/**
+ * Options for sending a message.
+ */
+export interface SqsSendOptions extends CommonOptions {
+  /** Delay in seconds before the message becomes visible (0-900) */
+  readonly delaySeconds?: number;
+  /** Message attributes */
+  readonly messageAttributes?: Record<string, SqsMessageAttribute>;
+  /** Message group ID (required for FIFO queues) */
+  readonly messageGroupId?: string;
+  /** Message deduplication ID (required for FIFO queues without content-based deduplication) */
+  readonly messageDeduplicationId?: string;
+}
+
+/**
+ * Batch message for sendBatch.
+ */
+export interface SqsBatchMessage {
+  readonly id: string;
+  readonly body: string;
+  readonly delaySeconds?: number;
+  readonly messageAttributes?: Record<string, SqsMessageAttribute>;
+}
+
+/**
+ * Options for receiving messages.
+ */
+export interface SqsReceiveOptions extends CommonOptions {
+  /** Maximum number of messages to receive (1-10, default: 1) */
+  readonly maxMessages?: number;
+  /** Wait time in seconds for long polling (0-20) */
+  readonly waitTimeSeconds?: number;
+  /** Visibility timeout in seconds (0-43200) */
+  readonly visibilityTimeout?: number;
+  /** System attribute names to retrieve */
+  readonly attributeNames?: readonly string[];
+  /** Message attribute names to retrieve */
+  readonly messageAttributeNames?: readonly string[];
+}
+
+/**
+ * Result of sending a message.
+ */
+export interface SqsSendResult {
+  readonly ok: boolean;
+  readonly messageId: string;
+  readonly md5OfBody: string;
+  readonly sequenceNumber?: string;
+  readonly duration: number;
+}
+
+/**
+ * Successful batch send entry.
+ */
+export interface SqsBatchSuccessEntry {
+  readonly messageId: string;
+  readonly id: string;
+}
+
+/**
+ * Failed batch entry.
+ */
+export interface SqsBatchFailedEntry {
+  readonly id: string;
+  readonly code: string;
+  readonly message: string;
+}
+
+/**
+ * Result of batch sending messages.
+ */
+export interface SqsSendBatchResult {
+  readonly ok: boolean;
+  readonly successful: readonly SqsBatchSuccessEntry[];
+  readonly failed: readonly SqsBatchFailedEntry[];
+  readonly duration: number;
+}
+
+/**
+ * Result of receiving messages.
+ */
+export interface SqsReceiveResult {
+  readonly ok: boolean;
+  readonly messages: SqsMessages;
+  readonly duration: number;
+}
+
+/**
+ * Result of deleting a message.
+ */
+export interface SqsDeleteResult {
+  readonly ok: boolean;
+  readonly duration: number;
+}
+
+/**
+ * Result of batch deleting messages.
+ */
+export interface SqsDeleteBatchResult {
+  readonly ok: boolean;
+  readonly successful: readonly string[];
+  readonly failed: readonly SqsBatchFailedEntry[];
+  readonly duration: number;
+}
+
+/**
+ * SQS client interface.
+ */
+export interface SqsClient extends AsyncDisposable {
+  readonly config: SqsClientConfig;
+
+  /**
+   * Send a message to the queue.
+   */
+  send(body: string, options?: SqsSendOptions): Promise<SqsSendResult>;
+
+  /**
+   * Send multiple messages to the queue in a single request.
+   */
+  sendBatch(messages: SqsBatchMessage[]): Promise<SqsSendBatchResult>;
+
+  /**
+   * Receive messages from the queue.
+   */
+  receive(options?: SqsReceiveOptions): Promise<SqsReceiveResult>;
+
+  /**
+   * Delete a message from the queue.
+   */
+  delete(
+    receiptHandle: string,
+    options?: CommonOptions,
+  ): Promise<SqsDeleteResult>;
+
+  /**
+   * Delete multiple messages from the queue in a single request.
+   */
+  deleteBatch(
+    receiptHandles: string[],
+    options?: CommonOptions,
+  ): Promise<SqsDeleteBatchResult>;
+
+  /**
+   * Purge all messages from the queue.
+   */
+  purge(options?: CommonOptions): Promise<SqsDeleteResult>;
+
+  /**
+   * Close the client and release resources.
+   */
+  close(): Promise<void>;
+}
