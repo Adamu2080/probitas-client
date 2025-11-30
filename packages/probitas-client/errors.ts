@@ -1,16 +1,19 @@
 /**
- * Error kind discriminator for ClientError subclasses.
- */
-export type ClientErrorKind = "connection" | "timeout" | "abort" | "unknown";
-
-/**
  * Base error class for all client errors.
+ *
+ * The `kind` property is typed as `string` to allow client-specific packages
+ * to define their own error kinds without modifying this core package.
+ * Subclasses can narrow the type using literal types with `as const`.
  */
 export class ClientError extends Error {
   override readonly name: string = "ClientError";
-  readonly kind: ClientErrorKind;
+  readonly kind: string;
 
-  constructor(message: string, kind: ClientErrorKind, options?: ErrorOptions) {
+  constructor(
+    message: string,
+    kind: string = "unknown",
+    options?: ErrorOptions,
+  ) {
     super(message, options);
     this.kind = kind;
   }
