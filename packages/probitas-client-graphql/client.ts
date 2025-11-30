@@ -111,6 +111,7 @@ class GraphqlClientImpl implements GraphqlClient {
     const duration = performance.now() - startTime;
 
     if (!rawResponse.ok) {
+      await rawResponse.body?.cancel();
       throw new GraphqlNetworkError(
         `HTTP ${rawResponse.status}: ${rawResponse.statusText}`,
       );
@@ -158,7 +159,7 @@ class GraphqlClientImpl implements GraphqlClient {
       );
     }
 
-    const ws = new WebSocket(wsEndpoint, "graphql-ws");
+    const ws = new WebSocket(wsEndpoint, "graphql-transport-ws");
 
     // Wait for connection to open
     await new Promise<void>((resolve, reject) => {
