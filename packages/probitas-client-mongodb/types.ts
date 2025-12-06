@@ -4,19 +4,21 @@ import type { CommonOptions } from "@probitas/client";
  * MongoDB document type
  */
 // deno-lint-ignore no-explicit-any
-export type Document = Record<string, any>;
+export type Document<T = any> = Record<string, T>;
 
 /**
  * MongoDB filter type (simplified for compatibility with mongodb driver)
+ * Allows query operators like $gte, $lt, $in, etc.
  */
 // deno-lint-ignore no-explicit-any
-export type Filter<T> = Record<string, any>;
+export type Filter = Record<string, any>;
 
 /**
  * MongoDB update filter type (simplified for compatibility with mongodb driver)
+ * Allows update operators like $set, $inc, $unset, etc.
  */
 // deno-lint-ignore no-explicit-any
-export type UpdateFilter<T> = Record<string, any>;
+export type UpdateFilter = Record<string, any>;
 
 /**
  * Document array with first/last methods
@@ -32,6 +34,7 @@ export interface MongoDocs<T> extends ReadonlyArray<T> {
  * Query result (find, aggregate)
  */
 export interface MongoFindResult<T = Document> {
+  readonly type: "mongo:find";
   readonly ok: boolean;
   readonly docs: MongoDocs<T>;
   readonly duration: number;
@@ -41,6 +44,7 @@ export interface MongoFindResult<T = Document> {
  * Insert one result
  */
 export interface MongoInsertOneResult {
+  readonly type: "mongo:insert";
   readonly ok: boolean;
   readonly insertedId: string;
   readonly duration: number;
@@ -50,6 +54,7 @@ export interface MongoInsertOneResult {
  * Insert many result
  */
 export interface MongoInsertManyResult {
+  readonly type: "mongo:insert";
   readonly ok: boolean;
   readonly insertedIds: readonly string[];
   readonly insertedCount: number;
@@ -60,6 +65,7 @@ export interface MongoInsertManyResult {
  * Update result
  */
 export interface MongoUpdateResult {
+  readonly type: "mongo:update";
   readonly ok: boolean;
   readonly matchedCount: number;
   readonly modifiedCount: number;
@@ -71,10 +77,45 @@ export interface MongoUpdateResult {
  * Delete result
  */
 export interface MongoDeleteResult {
+  readonly type: "mongo:delete";
   readonly ok: boolean;
   readonly deletedCount: number;
   readonly duration: number;
 }
+
+/**
+ * FindOne result
+ */
+export interface MongoFindOneResult<T = Document> {
+  readonly type: "mongo:find-one";
+  readonly ok: boolean;
+  readonly doc: T | undefined;
+  readonly duration: number;
+}
+
+/**
+ * Count result
+ */
+export interface MongoCountResult {
+  readonly type: "mongo:count";
+  readonly ok: boolean;
+  readonly count: number;
+  readonly duration: number;
+}
+
+/**
+ * Union of all MongoDB result types.
+ * Used by expectMongoResult to determine the appropriate expectation type.
+ */
+// deno-lint-ignore no-explicit-any
+export type MongoResult<T = any> =
+  | MongoFindResult<T>
+  | MongoInsertOneResult
+  | MongoInsertManyResult
+  | MongoUpdateResult
+  | MongoDeleteResult
+  | MongoFindOneResult<T>
+  | MongoCountResult;
 
 /**
  * MongoDB find options
@@ -113,10 +154,13 @@ export interface MongoSession {
  */
 export interface MongoCollection<T extends Document> {
   find(
-    filter?: Filter<T>,
+    filter?: Filter,
     options?: MongoFindOptions,
   ): Promise<MongoFindResult<T>>;
-  findOne(filter: Filter<T>, options?: CommonOptions): Promise<T | undefined>;
+  findOne(
+    filter: Filter,
+    options?: CommonOptions,
+  ): Promise<MongoFindOneResult<T>>;
   insertOne(
     doc: Omit<T, "_id">,
     options?: CommonOptions,
@@ -126,21 +170,21 @@ export interface MongoCollection<T extends Document> {
     options?: CommonOptions,
   ): Promise<MongoInsertManyResult>;
   updateOne(
-    filter: Filter<T>,
-    update: UpdateFilter<T>,
+    filter: Filter,
+    update: UpdateFilter,
     options?: MongoUpdateOptions,
   ): Promise<MongoUpdateResult>;
   updateMany(
-    filter: Filter<T>,
-    update: UpdateFilter<T>,
+    filter: Filter,
+    update: UpdateFilter,
     options?: MongoUpdateOptions,
   ): Promise<MongoUpdateResult>;
   deleteOne(
-    filter: Filter<T>,
+    filter: Filter,
     options?: CommonOptions,
   ): Promise<MongoDeleteResult>;
   deleteMany(
-    filter: Filter<T>,
+    filter: Filter,
     options?: CommonOptions,
   ): Promise<MongoDeleteResult>;
   aggregate<R = T>(
@@ -148,9 +192,9 @@ export interface MongoCollection<T extends Document> {
     options?: CommonOptions,
   ): Promise<MongoFindResult<R>>;
   countDocuments(
-    filter?: Filter<T>,
+    filter?: Filter,
     options?: CommonOptions,
-  ): Promise<number>;
+  ): Promise<MongoCountResult>;
 }
 
 /**

@@ -1,11 +1,7 @@
 import { assertEquals, assertInstanceOf, assertRejects } from "@std/assert";
 import { AbortError } from "@probitas/client";
 import { createRedisClient } from "./client.ts";
-import {
-  expectRedisArrayResult,
-  expectRedisCountResult,
-  expectRedisResult,
-} from "./expect.ts";
+import { expectRedisResult } from "./expect.ts";
 
 const REDIS_URL = Deno.env.get("REDIS_URL") ?? "redis://localhost:16379";
 
@@ -58,10 +54,10 @@ Deno.test({
           await client.set(key, "10");
 
           const incrResult = await client.incr(key);
-          expectRedisCountResult(incrResult).ok().count(11);
+          expectRedisResult(incrResult).ok().count(11);
 
           const decrResult = await client.decr(key);
-          expectRedisCountResult(decrResult).ok().count(10);
+          expectRedisResult(decrResult).ok().count(10);
         });
 
         await t.step("DEL", async () => {
@@ -70,7 +66,7 @@ Deno.test({
             `${testKey}:ex`,
             `${testKey}:counter`,
           );
-          expectRedisCountResult(delResult).ok().countAtLeast(1);
+          expectRedisResult(delResult).ok().countAtLeast(1);
         });
       });
 
@@ -79,7 +75,7 @@ Deno.test({
 
         await t.step("HSET and HGET", async () => {
           const hsetResult = await client.hset(testKey, "field1", "value1");
-          expectRedisCountResult(hsetResult).ok();
+          expectRedisResult(hsetResult).ok();
 
           const hgetResult = await client.hget(testKey, "field1");
           expectRedisResult(hgetResult).ok().value("value1");
@@ -95,7 +91,7 @@ Deno.test({
 
         await t.step("HDEL", async () => {
           const result = await client.hdel(testKey, "field1", "field2");
-          expectRedisCountResult(result).ok().count(2);
+          expectRedisResult(result).ok().count(2);
         });
 
         await client.del(testKey);
@@ -106,15 +102,15 @@ Deno.test({
 
         await t.step("LPUSH and RPUSH", async () => {
           const lpushResult = await client.lpush(testKey, "a", "b");
-          expectRedisCountResult(lpushResult).ok().count(2);
+          expectRedisResult(lpushResult).ok().count(2);
 
           const rpushResult = await client.rpush(testKey, "c");
-          expectRedisCountResult(rpushResult).ok().count(3);
+          expectRedisResult(rpushResult).ok().count(3);
         });
 
         await t.step("LRANGE", async () => {
           const result = await client.lrange(testKey, 0, -1);
-          expectRedisArrayResult(result).ok().length(3);
+          expectRedisResult(result).ok().length(3);
         });
 
         await t.step("LPOP and RPOP", async () => {
@@ -127,7 +123,7 @@ Deno.test({
 
         await t.step("LLEN", async () => {
           const result = await client.llen(testKey);
-          expectRedisCountResult(result).ok().count(1);
+          expectRedisResult(result).ok().count(1);
         });
 
         await client.del(testKey);
@@ -138,12 +134,12 @@ Deno.test({
 
         await t.step("SADD", async () => {
           const result = await client.sadd(testKey, "a", "b", "c");
-          expectRedisCountResult(result).ok().count(3);
+          expectRedisResult(result).ok().count(3);
         });
 
         await t.step("SMEMBERS", async () => {
           const result = await client.smembers(testKey);
-          expectRedisArrayResult(result).ok().length(3);
+          expectRedisResult(result).ok().length(3);
         });
 
         await t.step("SISMEMBER", async () => {
@@ -156,7 +152,7 @@ Deno.test({
 
         await t.step("SREM", async () => {
           const result = await client.srem(testKey, "a");
-          expectRedisCountResult(result).ok().count(1);
+          expectRedisResult(result).ok().count(1);
         });
 
         await client.del(testKey);
@@ -172,12 +168,12 @@ Deno.test({
             { score: 2, member: "b" },
             { score: 3, member: "c" },
           );
-          expectRedisCountResult(result).ok().count(3);
+          expectRedisResult(result).ok().count(3);
         });
 
         await t.step("ZRANGE", async () => {
           const result = await client.zrange(testKey, 0, -1);
-          expectRedisArrayResult(result).ok().length(3);
+          expectRedisResult(result).ok().length(3);
         });
 
         await t.step("ZSCORE", async () => {
@@ -201,7 +197,7 @@ Deno.test({
           tx.get(testKey);
 
           const result = await tx.exec();
-          expectRedisArrayResult(result).ok().length(3);
+          expectRedisResult(result).ok().length(3);
           assertEquals(result.value[0], "OK");
           assertEquals(result.value[1], 2);
           assertEquals(result.value[2], "2");
@@ -259,7 +255,7 @@ Deno.test({
           const listKey = `${testKey}:list`;
           await client.lpush(listKey, "a", "b");
           const result = await client.lrange(listKey, 0, -1, { timeout: 5000 });
-          expectRedisArrayResult(result).ok().length(2);
+          expectRedisResult(result).ok().length(2);
           await client.del(listKey);
         });
 
@@ -267,7 +263,7 @@ Deno.test({
           const setKey = `${testKey}:set`;
           await client.sadd(setKey, "a", "b");
           const result = await client.smembers(setKey, { timeout: 5000 });
-          expectRedisArrayResult(result).ok().length(2);
+          expectRedisResult(result).ok().length(2);
           await client.del(setKey);
         });
 
@@ -275,7 +271,7 @@ Deno.test({
           const zsetKey = `${testKey}:zset`;
           await client.zadd(zsetKey, { score: 1, member: "a" });
           const result = await client.zrange(zsetKey, 0, -1, { timeout: 5000 });
-          expectRedisArrayResult(result).ok().length(1);
+          expectRedisResult(result).ok().length(1);
           await client.del(zsetKey);
         });
 

@@ -2,6 +2,7 @@
  * Result of a get operation.
  */
 export interface DenoKvGetResult<T> {
+  readonly type: "deno-kv:get";
   readonly ok: boolean;
   readonly key: Deno.KvKey;
   readonly value: T | null;
@@ -13,6 +14,7 @@ export interface DenoKvGetResult<T> {
  * Result of a set operation.
  */
 export interface DenoKvSetResult {
+  readonly type: "deno-kv:set";
   readonly ok: boolean;
   readonly versionstamp: string;
   readonly duration: number;
@@ -22,6 +24,7 @@ export interface DenoKvSetResult {
  * Result of a delete operation.
  */
 export interface DenoKvDeleteResult {
+  readonly type: "deno-kv:delete";
   readonly ok: boolean;
   readonly duration: number;
 }
@@ -105,6 +108,7 @@ export function createDenoKvEntries<T>(
  * Result of a list operation.
  */
 export interface DenoKvListResult<T> {
+  readonly type: "deno-kv:list";
   readonly ok: boolean;
   readonly entries: DenoKvEntries<T>;
   readonly duration: number;
@@ -114,7 +118,19 @@ export interface DenoKvListResult<T> {
  * Result of an atomic operation.
  */
 export interface DenoKvAtomicResult {
+  readonly type: "deno-kv:atomic";
   readonly ok: boolean;
   readonly versionstamp?: string;
   readonly duration: number;
 }
+
+/**
+ * Union of all Deno KV result types.
+ * Used by expectDenoKvResult to determine the appropriate expectation type.
+ */
+export type DenoKvResult<T = unknown> =
+  | DenoKvGetResult<T>
+  | DenoKvSetResult
+  | DenoKvDeleteResult
+  | DenoKvListResult<T>
+  | DenoKvAtomicResult;

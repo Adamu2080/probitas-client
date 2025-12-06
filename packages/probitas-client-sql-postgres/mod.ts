@@ -25,3 +25,7 @@ export {
   SqlError,
 } from "@probitas/client-sql";
 export type { SqlErrorKind, SqlErrorOptions } from "@probitas/client-sql";
+
+// Re-export expectation for convenience
+export { expectSqlQueryResult } from "@probitas/client-sql";
+export type { SqlQueryResultExpectation } from "@probitas/client-sql";

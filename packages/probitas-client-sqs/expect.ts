@@ -1,11 +1,14 @@
 import { containsSubset } from "@probitas/client";
 import type {
   SqsDeleteBatchResult,
+  SqsDeleteQueueResult,
   SqsDeleteResult,
+  SqsEnsureQueueResult,
   SqsMessage,
   SqsMessageAttribute,
   SqsMessages,
   SqsReceiveResult,
+  SqsResult,
   SqsSendBatchResult,
   SqsSendResult,
 } from "./types.ts";
@@ -545,55 +548,215 @@ class SqsMessageExpectationImpl implements SqsMessageExpectation {
 }
 
 /**
- * Create a fluent expectation chain for SQS send result validation.
- */
-export function expectSqsSendResult(
-  result: SqsSendResult,
-): SqsSendResultExpectation {
-  return new SqsSendResultExpectationImpl(result);
-}
-
-/**
- * Create a fluent expectation chain for SQS send batch result validation.
- */
-export function expectSqsSendBatchResult(
-  result: SqsSendBatchResult,
-): SqsSendBatchResultExpectation {
-  return new SqsSendBatchResultExpectationImpl(result);
-}
-
-/**
- * Create a fluent expectation chain for SQS receive result validation.
- */
-export function expectSqsReceiveResult(
-  result: SqsReceiveResult,
-): SqsReceiveResultExpectation {
-  return new SqsReceiveResultExpectationImpl(result);
-}
-
-/**
- * Create a fluent expectation chain for SQS delete result validation.
- */
-export function expectSqsDeleteResult(
-  result: SqsDeleteResult,
-): SqsDeleteResultExpectation {
-  return new SqsDeleteResultExpectationImpl(result);
-}
-
-/**
- * Create a fluent expectation chain for SQS delete batch result validation.
- */
-export function expectSqsDeleteBatchResult(
-  result: SqsDeleteBatchResult,
-): SqsSendBatchResultExpectation {
-  return new SqsDeleteBatchResultExpectationImpl(result);
-}
-
-/**
  * Create a fluent expectation chain for SQS message validation.
  */
 export function expectSqsMessage(
   message: SqsMessage,
 ): SqsMessageExpectation {
   return new SqsMessageExpectationImpl(message);
+}
+
+/**
+ * Fluent API for SQS ensure queue result validation.
+ */
+export interface SqsEnsureQueueResultExpectation {
+  /** Assert that result ok is true */
+  ok(): this;
+
+  /** Assert that result ok is false */
+  notOk(): this;
+
+  /** Assert that queueUrl exists */
+  hasQueueUrl(): this;
+
+  /** Assert that queueUrl matches expected */
+  queueUrl(expected: string): this;
+
+  /** Assert that queueUrl contains substring */
+  queueUrlContains(substring: string): this;
+
+  /** Assert that duration is less than threshold (ms) */
+  durationLessThan(ms: number): this;
+}
+
+/**
+ * Fluent API for SQS delete queue result validation.
+ */
+export interface SqsDeleteQueueResultExpectation {
+  /** Assert that result ok is true */
+  ok(): this;
+
+  /** Assert that result ok is false */
+  notOk(): this;
+
+  /** Assert that duration is less than threshold (ms) */
+  durationLessThan(ms: number): this;
+}
+
+/**
+ * Implementation for SQS ensure queue result expectations.
+ */
+class SqsEnsureQueueResultExpectationImpl
+  implements SqsEnsureQueueResultExpectation {
+  readonly #result: SqsEnsureQueueResult;
+
+  constructor(result: SqsEnsureQueueResult) {
+    this.#result = result;
+  }
+
+  ok(): this {
+    if (!this.#result.ok) {
+      throw new Error("Expected ok result, but ok is false");
+    }
+    return this;
+  }
+
+  notOk(): this {
+    if (this.#result.ok) {
+      throw new Error("Expected not ok result, but ok is true");
+    }
+    return this;
+  }
+
+  hasQueueUrl(): this {
+    if (!this.#result.queueUrl) {
+      throw new Error("Expected queueUrl, but queueUrl is empty");
+    }
+    return this;
+  }
+
+  queueUrl(expected: string): this {
+    if (this.#result.queueUrl !== expected) {
+      throw new Error(
+        `Expected queueUrl "${expected}", got "${this.#result.queueUrl}"`,
+      );
+    }
+    return this;
+  }
+
+  queueUrlContains(substring: string): this {
+    if (!this.#result.queueUrl.includes(substring)) {
+      throw new Error(
+        `Expected queueUrl to contain "${substring}", got "${this.#result.queueUrl}"`,
+      );
+    }
+    return this;
+  }
+
+  durationLessThan(ms: number): this {
+    if (this.#result.duration >= ms) {
+      throw new Error(
+        `Expected duration < ${ms}ms, got ${this.#result.duration}ms`,
+      );
+    }
+    return this;
+  }
+}
+
+/**
+ * Implementation for SQS delete queue result expectations.
+ */
+class SqsDeleteQueueResultExpectationImpl
+  implements SqsDeleteQueueResultExpectation {
+  readonly #result: SqsDeleteQueueResult;
+
+  constructor(result: SqsDeleteQueueResult) {
+    this.#result = result;
+  }
+
+  ok(): this {
+    if (!this.#result.ok) {
+      throw new Error("Expected ok result, but ok is false");
+    }
+    return this;
+  }
+
+  notOk(): this {
+    if (this.#result.ok) {
+      throw new Error("Expected not ok result, but ok is true");
+    }
+    return this;
+  }
+
+  durationLessThan(ms: number): this {
+    if (this.#result.duration >= ms) {
+      throw new Error(
+        `Expected duration < ${ms}ms, got ${this.#result.duration}ms`,
+      );
+    }
+    return this;
+  }
+}
+
+/**
+ * Expectation type returned by expectSqsResult based on the result type.
+ */
+export type SqsExpectation<R extends SqsResult> = R extends SqsSendResult
+  ? SqsSendResultExpectation
+  : R extends SqsSendBatchResult ? SqsSendBatchResultExpectation
+  : R extends SqsReceiveResult ? SqsReceiveResultExpectation
+  : R extends SqsDeleteResult ? SqsDeleteResultExpectation
+  : R extends SqsDeleteBatchResult ? SqsSendBatchResultExpectation
+  : R extends SqsEnsureQueueResult ? SqsEnsureQueueResultExpectation
+  : R extends SqsDeleteQueueResult ? SqsDeleteQueueResultExpectation
+  : never;
+
+/**
+ * Create a fluent expectation chain for any SQS result validation.
+ *
+ * This unified function accepts any SQS result type and returns
+ * the appropriate expectation interface based on the result's type discriminator.
+ *
+ * @example
+ * ```ts
+ * // For send result - returns SqsSendResultExpectation
+ * const sendResult = await client.send("message");
+ * expectSqsResult(sendResult).ok().hasMessageId();
+ *
+ * // For receive result - returns SqsReceiveResultExpectation
+ * const receiveResult = await client.receive();
+ * expectSqsResult(receiveResult).ok().hasContent().count(3);
+ *
+ * // For delete result - returns SqsDeleteResultExpectation
+ * const deleteResult = await client.delete(receiptHandle);
+ * expectSqsResult(deleteResult).ok();
+ * ```
+ */
+export function expectSqsResult<R extends SqsResult>(
+  result: R,
+): SqsExpectation<R> {
+  switch (result.type) {
+    case "sqs:send":
+      return new SqsSendResultExpectationImpl(
+        result as SqsSendResult,
+      ) as unknown as SqsExpectation<R>;
+    case "sqs:send-batch":
+      return new SqsSendBatchResultExpectationImpl(
+        result as SqsSendBatchResult,
+      ) as unknown as SqsExpectation<R>;
+    case "sqs:receive":
+      return new SqsReceiveResultExpectationImpl(
+        result as SqsReceiveResult,
+      ) as unknown as SqsExpectation<R>;
+    case "sqs:delete":
+      return new SqsDeleteResultExpectationImpl(
+        result as SqsDeleteResult,
+      ) as unknown as SqsExpectation<R>;
+    case "sqs:delete-batch":
+      return new SqsDeleteBatchResultExpectationImpl(
+        result as SqsDeleteBatchResult,
+      ) as unknown as SqsExpectation<R>;
+    case "sqs:ensure-queue":
+      return new SqsEnsureQueueResultExpectationImpl(
+        result as SqsEnsureQueueResult,
+      ) as unknown as SqsExpectation<R>;
+    case "sqs:delete-queue":
+      return new SqsDeleteQueueResultExpectationImpl(
+        result as SqsDeleteQueueResult,
+      ) as unknown as SqsExpectation<R>;
+    default:
+      throw new Error(
+        `Unknown SQS result type: ${(result as { type: string }).type}`,
+      );
+  }
 }

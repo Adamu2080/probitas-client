@@ -1,21 +1,19 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import type {
+  RabbitMqAckResult,
   RabbitMqConsumeResult,
+  RabbitMqExchangeResult,
   RabbitMqMessage,
   RabbitMqPublishResult,
   RabbitMqQueueResult,
 } from "./types.ts";
-import {
-  expectRabbitMqConsumeResult,
-  expectRabbitMqPublishResult,
-  expectRabbitMqQueueResult,
-} from "./expect.ts";
+import { expectRabbitMqResult } from "./expect.ts";
 
 function createPublishResult(
   ok = true,
   duration = 10,
 ): RabbitMqPublishResult {
-  return { ok, duration };
+  return { type: "rabbitmq:publish", ok, duration };
 }
 
 function createMessage(
@@ -56,7 +54,7 @@ function createConsumeResult(
   ok = true,
   duration = 10,
 ): RabbitMqConsumeResult {
-  return { ok, message, duration };
+  return { type: "rabbitmq:consume", ok, message, duration };
 }
 
 function createQueueResult(
@@ -66,19 +64,26 @@ function createQueueResult(
   ok = true,
   duration = 10,
 ): RabbitMqQueueResult {
-  return { ok, queue, messageCount, consumerCount, duration };
+  return {
+    type: "rabbitmq:queue",
+    ok,
+    queue,
+    messageCount,
+    consumerCount,
+    duration,
+  };
 }
 
-Deno.test("expectRabbitMqPublishResult", async (t) => {
+Deno.test("expectRabbitMqResult with publish result", async (t) => {
   await t.step("ok() passes when ok is true", () => {
     const result = createPublishResult();
-    expectRabbitMqPublishResult(result).ok();
+    expectRabbitMqResult(result).ok();
   });
 
   await t.step("ok() throws when ok is false", () => {
     const result = createPublishResult(false);
     assertThrows(
-      () => expectRabbitMqPublishResult(result).ok(),
+      () => expectRabbitMqResult(result).ok(),
       Error,
       "Expected ok result",
     );
@@ -86,13 +91,13 @@ Deno.test("expectRabbitMqPublishResult", async (t) => {
 
   await t.step("notOk() passes when ok is false", () => {
     const result = createPublishResult(false);
-    expectRabbitMqPublishResult(result).notOk();
+    expectRabbitMqResult(result).notOk();
   });
 
   await t.step("notOk() throws when ok is true", () => {
     const result = createPublishResult();
     assertThrows(
-      () => expectRabbitMqPublishResult(result).notOk(),
+      () => expectRabbitMqResult(result).notOk(),
       Error,
       "Expected not ok result",
     );
@@ -100,13 +105,13 @@ Deno.test("expectRabbitMqPublishResult", async (t) => {
 
   await t.step("durationLessThan() passes when duration is less", () => {
     const result = createPublishResult(true, 50);
-    expectRabbitMqPublishResult(result).durationLessThan(100);
+    expectRabbitMqResult(result).durationLessThan(100);
   });
 
   await t.step("durationLessThan() throws when duration is greater", () => {
     const result = createPublishResult(true, 150);
     assertThrows(
-      () => expectRabbitMqPublishResult(result).durationLessThan(100),
+      () => expectRabbitMqResult(result).durationLessThan(100),
       Error,
       "Expected duration",
     );
@@ -114,22 +119,22 @@ Deno.test("expectRabbitMqPublishResult", async (t) => {
 
   await t.step("methods can be chained", () => {
     const result = createPublishResult(true, 50);
-    expectRabbitMqPublishResult(result)
+    expectRabbitMqResult(result)
       .ok()
       .durationLessThan(100);
   });
 });
 
-Deno.test("expectRabbitMqConsumeResult", async (t) => {
+Deno.test("expectRabbitMqResult with consume result", async (t) => {
   await t.step("ok() passes when ok is true", () => {
     const result = createConsumeResult(null);
-    expectRabbitMqConsumeResult(result).ok();
+    expectRabbitMqResult(result).ok();
   });
 
   await t.step("ok() throws when ok is false", () => {
     const result = createConsumeResult(null, false);
     assertThrows(
-      () => expectRabbitMqConsumeResult(result).ok(),
+      () => expectRabbitMqResult(result).ok(),
       Error,
       "Expected ok result",
     );
@@ -137,14 +142,14 @@ Deno.test("expectRabbitMqConsumeResult", async (t) => {
 
   await t.step("noContent() passes when message is null", () => {
     const result = createConsumeResult(null);
-    expectRabbitMqConsumeResult(result).noContent();
+    expectRabbitMqResult(result).noContent();
   });
 
   await t.step("noContent() throws when message exists", () => {
     const message = createMessage("test");
     const result = createConsumeResult(message);
     assertThrows(
-      () => expectRabbitMqConsumeResult(result).noContent(),
+      () => expectRabbitMqResult(result).noContent(),
       Error,
       "Expected no message",
     );
@@ -153,13 +158,13 @@ Deno.test("expectRabbitMqConsumeResult", async (t) => {
   await t.step("hasContent() passes when message exists", () => {
     const message = createMessage("test");
     const result = createConsumeResult(message);
-    expectRabbitMqConsumeResult(result).hasContent();
+    expectRabbitMqResult(result).hasContent();
   });
 
   await t.step("hasContent() throws when message is null", () => {
     const result = createConsumeResult(null);
     assertThrows(
-      () => expectRabbitMqConsumeResult(result).hasContent(),
+      () => expectRabbitMqResult(result).hasContent(),
       Error,
       "Expected message",
     );
@@ -168,7 +173,7 @@ Deno.test("expectRabbitMqConsumeResult", async (t) => {
   await t.step("contentContains() passes when content contains subbody", () => {
     const message = createMessage("hello world");
     const result = createConsumeResult(message);
-    expectRabbitMqConsumeResult(result).contentContains(
+    expectRabbitMqResult(result).contentContains(
       new TextEncoder().encode("world"),
     );
   });
@@ -180,7 +185,7 @@ Deno.test("expectRabbitMqConsumeResult", async (t) => {
       const result = createConsumeResult(message);
       assertThrows(
         () =>
-          expectRabbitMqConsumeResult(result).contentContains(
+          expectRabbitMqResult(result).contentContains(
             new TextEncoder().encode("foo"),
           ),
         Error,
@@ -193,7 +198,7 @@ Deno.test("expectRabbitMqConsumeResult", async (t) => {
     const message = createMessage("test content");
     const result = createConsumeResult(message);
     let called = false;
-    expectRabbitMqConsumeResult(result).contentMatch((content) => {
+    expectRabbitMqResult(result).contentMatch((content) => {
       assertEquals(new TextDecoder().decode(content), "test content");
       called = true;
     });
@@ -206,7 +211,7 @@ Deno.test("expectRabbitMqConsumeResult", async (t) => {
       correlationId: "123",
     });
     const result = createConsumeResult(message);
-    expectRabbitMqConsumeResult(result).propertyContains({
+    expectRabbitMqResult(result).propertyContains({
       contentType: "application/json",
     });
   });
@@ -218,7 +223,7 @@ Deno.test("expectRabbitMqConsumeResult", async (t) => {
     const result = createConsumeResult(message);
     assertThrows(
       () =>
-        expectRabbitMqConsumeResult(result).propertyContains({
+        expectRabbitMqResult(result).propertyContains({
           contentType: "application/json",
         }),
       Error,
@@ -229,14 +234,14 @@ Deno.test("expectRabbitMqConsumeResult", async (t) => {
   await t.step("routingKey() passes when routing key matches", () => {
     const message = createMessage("test", "my.routing.key");
     const result = createConsumeResult(message);
-    expectRabbitMqConsumeResult(result).routingKey("my.routing.key");
+    expectRabbitMqResult(result).routingKey("my.routing.key");
   });
 
   await t.step("routingKey() throws when routing key doesn't match", () => {
     const message = createMessage("test", "actual.key");
     const result = createConsumeResult(message);
     assertThrows(
-      () => expectRabbitMqConsumeResult(result).routingKey("expected.key"),
+      () => expectRabbitMqResult(result).routingKey("expected.key"),
       Error,
       "Expected routing key",
     );
@@ -245,14 +250,14 @@ Deno.test("expectRabbitMqConsumeResult", async (t) => {
   await t.step("exchange() passes when exchange matches", () => {
     const message = createMessage("test", "key", "my-exchange");
     const result = createConsumeResult(message);
-    expectRabbitMqConsumeResult(result).exchange("my-exchange");
+    expectRabbitMqResult(result).exchange("my-exchange");
   });
 
   await t.step("exchange() throws when exchange doesn't match", () => {
     const message = createMessage("test", "key", "actual-exchange");
     const result = createConsumeResult(message);
     assertThrows(
-      () => expectRabbitMqConsumeResult(result).exchange("expected-exchange"),
+      () => expectRabbitMqResult(result).exchange("expected-exchange"),
       Error,
       "Expected exchange",
     );
@@ -263,7 +268,7 @@ Deno.test("expectRabbitMqConsumeResult", async (t) => {
       contentType: "text/plain",
     });
     const result = createConsumeResult(message, true, 50);
-    expectRabbitMqConsumeResult(result)
+    expectRabbitMqResult(result)
       .ok()
       .hasContent()
       .routingKey("my.key")
@@ -272,16 +277,16 @@ Deno.test("expectRabbitMqConsumeResult", async (t) => {
   });
 });
 
-Deno.test("expectRabbitMqQueueResult", async (t) => {
+Deno.test("expectRabbitMqResult with queue result", async (t) => {
   await t.step("ok() passes when ok is true", () => {
     const result = createQueueResult();
-    expectRabbitMqQueueResult(result).ok();
+    expectRabbitMqResult(result).ok();
   });
 
   await t.step("ok() throws when ok is false", () => {
     const result = createQueueResult("q", 0, 0, false);
     assertThrows(
-      () => expectRabbitMqQueueResult(result).ok(),
+      () => expectRabbitMqResult(result).ok(),
       Error,
       "Expected ok result",
     );
@@ -289,13 +294,13 @@ Deno.test("expectRabbitMqQueueResult", async (t) => {
 
   await t.step("messageCount() passes when counts match", () => {
     const result = createQueueResult("q", 5);
-    expectRabbitMqQueueResult(result).messageCount(5);
+    expectRabbitMqResult(result).messageCount(5);
   });
 
   await t.step("messageCount() throws when counts don't match", () => {
     const result = createQueueResult("q", 3);
     assertThrows(
-      () => expectRabbitMqQueueResult(result).messageCount(5),
+      () => expectRabbitMqResult(result).messageCount(5),
       Error,
       "Expected message count 5",
     );
@@ -305,7 +310,7 @@ Deno.test("expectRabbitMqQueueResult", async (t) => {
     "messageCountAtLeast() passes when count is at least min",
     () => {
       const result = createQueueResult("q", 5);
-      expectRabbitMqQueueResult(result).messageCountAtLeast(3);
+      expectRabbitMqResult(result).messageCountAtLeast(3);
     },
   );
 
@@ -314,7 +319,7 @@ Deno.test("expectRabbitMqQueueResult", async (t) => {
     () => {
       const result = createQueueResult("q", 2);
       assertThrows(
-        () => expectRabbitMqQueueResult(result).messageCountAtLeast(3),
+        () => expectRabbitMqResult(result).messageCountAtLeast(3),
         Error,
         "Expected message count >= 3",
       );
@@ -323,13 +328,13 @@ Deno.test("expectRabbitMqQueueResult", async (t) => {
 
   await t.step("consumerCount() passes when counts match", () => {
     const result = createQueueResult("q", 0, 2);
-    expectRabbitMqQueueResult(result).consumerCount(2);
+    expectRabbitMqResult(result).consumerCount(2);
   });
 
   await t.step("consumerCount() throws when counts don't match", () => {
     const result = createQueueResult("q", 0, 1);
     assertThrows(
-      () => expectRabbitMqQueueResult(result).consumerCount(2),
+      () => expectRabbitMqResult(result).consumerCount(2),
       Error,
       "Expected consumer count 2",
     );
@@ -337,13 +342,13 @@ Deno.test("expectRabbitMqQueueResult", async (t) => {
 
   await t.step("durationLessThan() passes when duration is less", () => {
     const result = createQueueResult("q", 0, 0, true, 50);
-    expectRabbitMqQueueResult(result).durationLessThan(100);
+    expectRabbitMqResult(result).durationLessThan(100);
   });
 
   await t.step("durationLessThan() throws when duration is greater", () => {
     const result = createQueueResult("q", 0, 0, true, 150);
     assertThrows(
-      () => expectRabbitMqQueueResult(result).durationLessThan(100),
+      () => expectRabbitMqResult(result).durationLessThan(100),
       Error,
       "Expected duration",
     );
@@ -351,11 +356,79 @@ Deno.test("expectRabbitMqQueueResult", async (t) => {
 
   await t.step("methods can be chained", () => {
     const result = createQueueResult("my-queue", 10, 2, true, 50);
-    expectRabbitMqQueueResult(result)
+    expectRabbitMqResult(result)
       .ok()
       .messageCount(10)
       .messageCountAtLeast(5)
       .consumerCount(2)
       .durationLessThan(100);
   });
+});
+
+Deno.test("expectRabbitMqResult with exchange result", async (t) => {
+  const successResult: RabbitMqExchangeResult = {
+    type: "rabbitmq:exchange",
+    ok: true,
+    duration: 10,
+  };
+  const failedResult: RabbitMqExchangeResult = {
+    type: "rabbitmq:exchange",
+    ok: false,
+    duration: 10,
+  };
+
+  await t.step("ok() passes when ok is true", () => {
+    expectRabbitMqResult(successResult).ok();
+  });
+
+  await t.step("ok() throws when ok is false", () => {
+    assertThrows(
+      () => expectRabbitMqResult(failedResult).ok(),
+      Error,
+      "Expected ok result",
+    );
+  });
+
+  await t.step("durationLessThan() passes when duration is less", () => {
+    expectRabbitMqResult(successResult).durationLessThan(100);
+  });
+});
+
+Deno.test("expectRabbitMqResult with ack result", async (t) => {
+  const successResult: RabbitMqAckResult = {
+    type: "rabbitmq:ack",
+    ok: true,
+    duration: 10,
+  };
+  const failedResult: RabbitMqAckResult = {
+    type: "rabbitmq:ack",
+    ok: false,
+    duration: 10,
+  };
+
+  await t.step("ok() passes when ok is true", () => {
+    expectRabbitMqResult(successResult).ok();
+  });
+
+  await t.step("ok() throws when ok is false", () => {
+    assertThrows(
+      () => expectRabbitMqResult(failedResult).ok(),
+      Error,
+      "Expected ok result",
+    );
+  });
+
+  await t.step("durationLessThan() passes when duration is less", () => {
+    expectRabbitMqResult(successResult).durationLessThan(100);
+  });
+});
+
+Deno.test("expectRabbitMqResult throws for unknown result type", () => {
+  const unknownResult = { type: "rabbitmq:unknown", ok: true, duration: 10 };
+  assertThrows(
+    // deno-lint-ignore no-explicit-any
+    () => expectRabbitMqResult(unknownResult as any),
+    Error,
+    "Unknown RabbitMQ result type: rabbitmq:unknown",
+  );
 });

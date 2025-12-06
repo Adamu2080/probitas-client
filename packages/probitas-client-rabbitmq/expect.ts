@@ -1,9 +1,12 @@
 import { containsSubset } from "@probitas/client";
 import type {
+  RabbitMqAckResult,
   RabbitMqConsumeResult,
+  RabbitMqExchangeResult,
   RabbitMqMessageProperties,
   RabbitMqPublishResult,
   RabbitMqQueueResult,
+  RabbitMqResult,
 } from "./types.ts";
 
 /**
@@ -56,6 +59,19 @@ export interface RabbitMqConsumeResultExpectation {
 }
 
 /**
+ * Fluent API for RabbitMQ exchange result validation.
+ * Same interface as publish result (ok, duration only).
+ */
+export type RabbitMqExchangeResultExpectation =
+  RabbitMqPublishResultExpectation;
+
+/**
+ * Fluent API for RabbitMQ ack result validation.
+ * Same interface as publish result (ok, duration only).
+ */
+export type RabbitMqAckResultExpectation = RabbitMqPublishResultExpectation;
+
+/**
  * Fluent API for RabbitMQ queue result validation.
  */
 export interface RabbitMqQueueResultExpectation {
@@ -79,13 +95,21 @@ export interface RabbitMqQueueResultExpectation {
 }
 
 /**
+ * Base result type for simple ok/duration results.
+ */
+interface SimpleResult {
+  readonly ok: boolean;
+  readonly duration: number;
+}
+
+/**
  * Implementation for RabbitMQ publish result expectations.
  */
-class RabbitMqPublishResultExpectationImpl
+class RabbitMqPublishResultExpectationImpl<T extends SimpleResult>
   implements RabbitMqPublishResultExpectation {
-  readonly #result: RabbitMqPublishResult;
+  readonly #result: T;
 
-  constructor(result: RabbitMqPublishResult) {
+  constructor(result: T) {
     this.#result = result;
   }
 
@@ -292,28 +316,72 @@ class RabbitMqQueueResultExpectationImpl
 }
 
 /**
- * Create a fluent expectation chain for RabbitMQ publish result validation.
+ * Expectation type returned by expectRabbitMqResult based on the result type.
  */
-export function expectRabbitMqPublishResult(
-  result: RabbitMqPublishResult,
-): RabbitMqPublishResultExpectation {
-  return new RabbitMqPublishResultExpectationImpl(result);
-}
+export type RabbitMqExpectation<R extends RabbitMqResult> = R extends
+  RabbitMqConsumeResult ? RabbitMqConsumeResultExpectation
+  : R extends RabbitMqQueueResult ? RabbitMqQueueResultExpectation
+  : R extends RabbitMqPublishResult ? RabbitMqPublishResultExpectation
+  : R extends RabbitMqExchangeResult ? RabbitMqExchangeResultExpectation
+  : R extends RabbitMqAckResult ? RabbitMqAckResultExpectation
+  : never;
 
 /**
- * Create a fluent expectation chain for RabbitMQ consume result validation.
+ * Create a fluent expectation chain for any RabbitMQ result validation.
+ *
+ * This unified function accepts any RabbitMQ result type and returns
+ * the appropriate expectation interface based on the result's type discriminator.
+ *
+ * @example
+ * ```ts
+ * // For publish result - returns RabbitMqPublishResultExpectation
+ * const publishResult = await channel.sendToQueue(queue, content);
+ * expectRabbitMqResult(publishResult).ok();
+ *
+ * // For consume result - returns RabbitMqConsumeResultExpectation
+ * const consumeResult = await channel.get(queue);
+ * expectRabbitMqResult(consumeResult).ok().hasContent().routingKey("key");
+ *
+ * // For queue result - returns RabbitMqQueueResultExpectation
+ * const queueResult = await channel.assertQueue("my-queue");
+ * expectRabbitMqResult(queueResult).ok().messageCount(0);
+ *
+ * // For exchange result - returns RabbitMqExchangeResultExpectation
+ * const exchangeResult = await channel.assertExchange("my-exchange", "direct");
+ * expectRabbitMqResult(exchangeResult).ok();
+ *
+ * // For ack result - returns RabbitMqAckResultExpectation
+ * const ackResult = await channel.ack(message);
+ * expectRabbitMqResult(ackResult).ok();
+ * ```
  */
-export function expectRabbitMqConsumeResult(
-  result: RabbitMqConsumeResult,
-): RabbitMqConsumeResultExpectation {
-  return new RabbitMqConsumeResultExpectationImpl(result);
-}
-
-/**
- * Create a fluent expectation chain for RabbitMQ queue result validation.
- */
-export function expectRabbitMqQueueResult(
-  result: RabbitMqQueueResult,
-): RabbitMqQueueResultExpectation {
-  return new RabbitMqQueueResultExpectationImpl(result);
+export function expectRabbitMqResult<R extends RabbitMqResult>(
+  result: R,
+): RabbitMqExpectation<R> {
+  switch (result.type) {
+    case "rabbitmq:consume":
+      return new RabbitMqConsumeResultExpectationImpl(
+        result as unknown as RabbitMqConsumeResult,
+      ) as unknown as RabbitMqExpectation<R>;
+    case "rabbitmq:queue":
+      return new RabbitMqQueueResultExpectationImpl(
+        result as unknown as RabbitMqQueueResult,
+      ) as unknown as RabbitMqExpectation<R>;
+    case "rabbitmq:publish":
+      return new RabbitMqPublishResultExpectationImpl<RabbitMqPublishResult>(
+        result as unknown as RabbitMqPublishResult,
+      ) as unknown as RabbitMqExpectation<R>;
+    case "rabbitmq:exchange":
+      return new RabbitMqPublishResultExpectationImpl<RabbitMqExchangeResult>(
+        result as unknown as RabbitMqExchangeResult,
+      ) as unknown as RabbitMqExpectation<R>;
+    case "rabbitmq:ack":
+      return new RabbitMqPublishResultExpectationImpl<RabbitMqAckResult>(
+        result as unknown as RabbitMqAckResult,
+      ) as unknown as RabbitMqExpectation<R>;
+    default:
+      throw new Error(
+        `Unknown RabbitMQ result type: ${(result as { type: string }).type}`,
+      );
+  }
 }

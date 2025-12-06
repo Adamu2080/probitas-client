@@ -11,8 +11,8 @@ export interface SqsClientConfig extends CommonOptions {
     readonly accessKeyId: string;
     readonly secretAccessKey: string;
   };
-  /** SQS queue URL */
-  readonly queueUrl: string;
+  /** SQS queue URL (optional - can be set later or used with ensureQueue) */
+  readonly queueUrl?: string;
   /** SQS endpoint URL (e.g., http://localhost:4566 for LocalStack) */
   readonly endpoint?: string;
 }
@@ -96,6 +96,7 @@ export interface SqsReceiveOptions extends CommonOptions {
  * Result of sending a message.
  */
 export interface SqsSendResult {
+  readonly type: "sqs:send";
   readonly ok: boolean;
   readonly messageId: string;
   readonly md5OfBody: string;
@@ -124,6 +125,7 @@ export interface SqsBatchFailedEntry {
  * Result of batch sending messages.
  */
 export interface SqsSendBatchResult {
+  readonly type: "sqs:send-batch";
   readonly ok: boolean;
   readonly successful: readonly SqsBatchSuccessEntry[];
   readonly failed: readonly SqsBatchFailedEntry[];
@@ -134,6 +136,7 @@ export interface SqsSendBatchResult {
  * Result of receiving messages.
  */
 export interface SqsReceiveResult {
+  readonly type: "sqs:receive";
   readonly ok: boolean;
   readonly messages: SqsMessages;
   readonly duration: number;
@@ -143,6 +146,7 @@ export interface SqsReceiveResult {
  * Result of deleting a message.
  */
 export interface SqsDeleteResult {
+  readonly type: "sqs:delete";
   readonly ok: boolean;
   readonly duration: number;
 }
@@ -151,6 +155,7 @@ export interface SqsDeleteResult {
  * Result of batch deleting messages.
  */
 export interface SqsDeleteBatchResult {
+  readonly type: "sqs:delete-batch";
   readonly ok: boolean;
   readonly successful: readonly string[];
   readonly failed: readonly SqsBatchFailedEntry[];
@@ -158,10 +163,80 @@ export interface SqsDeleteBatchResult {
 }
 
 /**
+ * Options for ensuring a queue exists.
+ */
+export interface SqsEnsureQueueOptions extends CommonOptions {
+  /** Queue attributes (e.g., DelaySeconds, MessageRetentionPeriod) */
+  readonly attributes?: Record<string, string>;
+  /** Queue tags */
+  readonly tags?: Record<string, string>;
+}
+
+/**
+ * Result of ensuring a queue exists.
+ */
+export interface SqsEnsureQueueResult {
+  readonly type: "sqs:ensure-queue";
+  readonly ok: boolean;
+  readonly queueUrl: string;
+  readonly duration: number;
+}
+
+/**
+ * Result of deleting a queue.
+ */
+export interface SqsDeleteQueueResult {
+  readonly type: "sqs:delete-queue";
+  readonly ok: boolean;
+  readonly duration: number;
+}
+
+/**
+ * Union type of all SQS result types.
+ * Used for type-safe handling in the unified expectSqsResult function.
+ */
+export type SqsResult =
+  | SqsSendResult
+  | SqsSendBatchResult
+  | SqsReceiveResult
+  | SqsDeleteResult
+  | SqsDeleteBatchResult
+  | SqsEnsureQueueResult
+  | SqsDeleteQueueResult;
+
+/**
  * SQS client interface.
  */
 export interface SqsClient extends AsyncDisposable {
   readonly config: SqsClientConfig;
+
+  /**
+   * The current queue URL. Can be set via config, ensureQueue(), or setQueueUrl().
+   */
+  readonly queueUrl: string | undefined;
+
+  /**
+   * Set the queue URL for subsequent operations.
+   */
+  setQueueUrl(queueUrl: string): void;
+
+  /**
+   * Ensure a queue exists. Creates the queue if it doesn't exist.
+   * If the queue already exists with the same attributes, returns the existing queue URL.
+   * Also sets the queue URL for subsequent operations.
+   */
+  ensureQueue(
+    queueName: string,
+    options?: SqsEnsureQueueOptions,
+  ): Promise<SqsEnsureQueueResult>;
+
+  /**
+   * Delete a queue by URL.
+   */
+  deleteQueue(
+    queueUrl: string,
+    options?: CommonOptions,
+  ): Promise<SqsDeleteQueueResult>;
 
   /**
    * Send a message to the queue.

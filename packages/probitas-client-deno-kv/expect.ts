@@ -5,6 +5,7 @@ import type {
   DenoKvEntries,
   DenoKvGetResult,
   DenoKvListResult,
+  DenoKvResult,
   DenoKvSetResult,
 } from "./results.ts";
 
@@ -76,9 +77,9 @@ export interface DenoKvListResultExpectation<T> {
 }
 
 /**
- * Fluent API for validating write operation results (set, delete, atomic).
+ * Fluent API for validating DenoKvSetResult.
  */
-export interface DenoKvWriteResultExpectation {
+export interface DenoKvSetResultExpectation {
   /** Assert that operation succeeded */
   ok(): this;
 
@@ -86,6 +87,37 @@ export interface DenoKvWriteResultExpectation {
   notOk(): this;
 
   /** Assert that versionstamp exists */
+  hasVersionstamp(): this;
+
+  /** Assert that duration is less than threshold (ms) */
+  durationLessThan(ms: number): this;
+}
+
+/**
+ * Fluent API for validating DenoKvDeleteResult.
+ */
+export interface DenoKvDeleteResultExpectation {
+  /** Assert that operation succeeded */
+  ok(): this;
+
+  /** Assert that operation did not succeed */
+  notOk(): this;
+
+  /** Assert that duration is less than threshold (ms) */
+  durationLessThan(ms: number): this;
+}
+
+/**
+ * Fluent API for validating DenoKvAtomicResult.
+ */
+export interface DenoKvAtomicResultExpectation {
+  /** Assert that operation succeeded */
+  ok(): this;
+
+  /** Assert that operation did not succeed */
+  notOk(): this;
+
+  /** Assert that versionstamp exists (only present on successful atomic commits) */
   hasVersionstamp(): this;
 
   /** Assert that duration is less than threshold (ms) */
@@ -297,14 +329,12 @@ class DenoKvListResultExpectationImpl<T>
 }
 
 /**
- * DenoKvWriteResultExpectation implementation.
+ * DenoKvSetResultExpectation implementation.
  */
-class DenoKvWriteResultExpectationImpl implements DenoKvWriteResultExpectation {
-  readonly #result: DenoKvSetResult | DenoKvDeleteResult | DenoKvAtomicResult;
+class DenoKvSetResultExpectationImpl implements DenoKvSetResultExpectation {
+  readonly #result: DenoKvSetResult;
 
-  constructor(
-    result: DenoKvSetResult | DenoKvDeleteResult | DenoKvAtomicResult,
-  ) {
+  constructor(result: DenoKvSetResult) {
     this.#result = result;
   }
 
@@ -323,7 +353,84 @@ class DenoKvWriteResultExpectationImpl implements DenoKvWriteResultExpectation {
   }
 
   hasVersionstamp(): this {
-    if (!("versionstamp" in this.#result) || !this.#result.versionstamp) {
+    if (!this.#result.versionstamp) {
+      throw new Error("Expected versionstamp, but it is empty");
+    }
+    return this;
+  }
+
+  durationLessThan(ms: number): this {
+    if (this.#result.duration >= ms) {
+      throw new Error(
+        `Expected duration < ${ms}ms, got ${this.#result.duration}ms`,
+      );
+    }
+    return this;
+  }
+}
+
+/**
+ * DenoKvDeleteResultExpectation implementation.
+ */
+class DenoKvDeleteResultExpectationImpl
+  implements DenoKvDeleteResultExpectation {
+  readonly #result: DenoKvDeleteResult;
+
+  constructor(result: DenoKvDeleteResult) {
+    this.#result = result;
+  }
+
+  ok(): this {
+    if (!this.#result.ok) {
+      throw new Error("Expected ok result");
+    }
+    return this;
+  }
+
+  notOk(): this {
+    if (this.#result.ok) {
+      throw new Error("Expected not ok result");
+    }
+    return this;
+  }
+
+  durationLessThan(ms: number): this {
+    if (this.#result.duration >= ms) {
+      throw new Error(
+        `Expected duration < ${ms}ms, got ${this.#result.duration}ms`,
+      );
+    }
+    return this;
+  }
+}
+
+/**
+ * DenoKvAtomicResultExpectation implementation.
+ */
+class DenoKvAtomicResultExpectationImpl
+  implements DenoKvAtomicResultExpectation {
+  readonly #result: DenoKvAtomicResult;
+
+  constructor(result: DenoKvAtomicResult) {
+    this.#result = result;
+  }
+
+  ok(): this {
+    if (!this.#result.ok) {
+      throw new Error("Expected ok result");
+    }
+    return this;
+  }
+
+  notOk(): this {
+    if (this.#result.ok) {
+      throw new Error("Expected not ok result");
+    }
+    return this;
+  }
+
+  hasVersionstamp(): this {
+    if (!this.#result.versionstamp) {
       throw new Error("Expected versionstamp, but it is missing or empty");
     }
     return this;
@@ -340,48 +447,75 @@ class DenoKvWriteResultExpectationImpl implements DenoKvWriteResultExpectation {
 }
 
 /**
- * Create a fluent expectation chain for DenoKvGetResult validation.
+ * Expectation type returned by expectDenoKvResult based on the result type.
+ */
+export type DenoKvExpectation<R extends DenoKvResult> = R extends
+  DenoKvGetResult<infer T> ? DenoKvGetResultExpectation<T>
+  : R extends DenoKvListResult<infer T> ? DenoKvListResultExpectation<T>
+  : R extends DenoKvSetResult ? DenoKvSetResultExpectation
+  : R extends DenoKvDeleteResult ? DenoKvDeleteResultExpectation
+  : R extends DenoKvAtomicResult ? DenoKvAtomicResultExpectation
+  : never;
+
+/**
+ * Create a fluent expectation chain for any Deno KV result validation.
+ *
+ * This unified function accepts any Deno KV result type and returns
+ * the appropriate expectation interface based on the result's type discriminator.
+ *
+ * @example
+ * ```ts
+ * // For GET result - returns DenoKvGetResultExpectation<T>
+ * const getResult = await kv.get(["users", "1"]);
+ * expectDenoKvResult(getResult).ok().hasContent().valueContains({ name: "Alice" });
+ *
+ * // For SET result - returns DenoKvSetResultExpectation
+ * const setResult = await kv.set(["users", "1"], { name: "Alice" });
+ * expectDenoKvResult(setResult).ok().hasVersionstamp();
+ *
+ * // For LIST result - returns DenoKvListResultExpectation<T>
+ * const listResult = await kv.list({ prefix: ["users"] });
+ * expectDenoKvResult(listResult).ok().count(3);
+ *
+ * // For DELETE result - returns DenoKvDeleteResultExpectation
+ * const deleteResult = await kv.delete(["users", "1"]);
+ * expectDenoKvResult(deleteResult).ok();
+ *
+ * // For ATOMIC result - returns DenoKvAtomicResultExpectation
+ * const atomicResult = await kv.atomic().set(["counter"], 1).commit();
+ * expectDenoKvResult(atomicResult).ok().hasVersionstamp();
+ * ```
  */
 // deno-lint-ignore no-explicit-any
-export function expectDenoKvGetResult<T = any>(
-  result: DenoKvGetResult<T>,
-): DenoKvGetResultExpectation<T> {
-  return new DenoKvGetResultExpectationImpl(result);
-}
-
-/**
- * Create a fluent expectation chain for DenoKvListResult validation.
- */
-// deno-lint-ignore no-explicit-any
-export function expectDenoKvListResult<T = any>(
-  result: DenoKvListResult<T>,
-): DenoKvListResultExpectation<T> {
-  return new DenoKvListResultExpectationImpl(result);
-}
-
-/**
- * Create a fluent expectation chain for DenoKvSetResult validation.
- */
-export function expectDenoKvSetResult(
-  result: DenoKvSetResult,
-): DenoKvWriteResultExpectation {
-  return new DenoKvWriteResultExpectationImpl(result);
-}
-
-/**
- * Create a fluent expectation chain for DenoKvDeleteResult validation.
- */
-export function expectDenoKvDeleteResult(
-  result: DenoKvDeleteResult,
-): DenoKvWriteResultExpectation {
-  return new DenoKvWriteResultExpectationImpl(result);
-}
-
-/**
- * Create a fluent expectation chain for DenoKvAtomicResult validation.
- */
-export function expectDenoKvAtomicResult(
-  result: DenoKvAtomicResult,
-): DenoKvWriteResultExpectation {
-  return new DenoKvWriteResultExpectationImpl(result);
+export function expectDenoKvResult<R extends DenoKvResult<any>>(
+  result: R,
+): DenoKvExpectation<R> {
+  switch (result.type) {
+    case "deno-kv:get":
+      return new DenoKvGetResultExpectationImpl(
+        // deno-lint-ignore no-explicit-any
+        result as DenoKvGetResult<any>,
+      ) as unknown as DenoKvExpectation<R>;
+    case "deno-kv:list":
+      return new DenoKvListResultExpectationImpl(
+        // deno-lint-ignore no-explicit-any
+        result as DenoKvListResult<any>,
+      ) as unknown as DenoKvExpectation<R>;
+    case "deno-kv:set":
+      return new DenoKvSetResultExpectationImpl(
+        result as DenoKvSetResult,
+      ) as unknown as DenoKvExpectation<R>;
+    case "deno-kv:delete":
+      return new DenoKvDeleteResultExpectationImpl(
+        result as DenoKvDeleteResult,
+      ) as unknown as DenoKvExpectation<R>;
+    case "deno-kv:atomic":
+      return new DenoKvAtomicResultExpectationImpl(
+        result as DenoKvAtomicResult,
+      ) as unknown as DenoKvExpectation<R>;
+    default:
+      throw new Error(
+        `Unknown Deno KV result type: ${(result as { type: string }).type}`,
+      );
+  }
 }
