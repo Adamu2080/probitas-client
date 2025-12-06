@@ -76,9 +76,9 @@ export interface DenoKvListResultExpectation<T> {
 }
 
 /**
- * Fluent API for validating write operation results (set, delete, atomic).
+ * Fluent API for validating DenoKvSetResult.
  */
-export interface DenoKvWriteResultExpectation {
+export interface DenoKvSetResultExpectation {
   /** Assert that operation succeeded */
   ok(): this;
 
@@ -86,6 +86,37 @@ export interface DenoKvWriteResultExpectation {
   notOk(): this;
 
   /** Assert that versionstamp exists */
+  hasVersionstamp(): this;
+
+  /** Assert that duration is less than threshold (ms) */
+  durationLessThan(ms: number): this;
+}
+
+/**
+ * Fluent API for validating DenoKvDeleteResult.
+ */
+export interface DenoKvDeleteResultExpectation {
+  /** Assert that operation succeeded */
+  ok(): this;
+
+  /** Assert that operation did not succeed */
+  notOk(): this;
+
+  /** Assert that duration is less than threshold (ms) */
+  durationLessThan(ms: number): this;
+}
+
+/**
+ * Fluent API for validating DenoKvAtomicResult.
+ */
+export interface DenoKvAtomicResultExpectation {
+  /** Assert that operation succeeded */
+  ok(): this;
+
+  /** Assert that operation did not succeed */
+  notOk(): this;
+
+  /** Assert that versionstamp exists (only present on successful atomic commits) */
   hasVersionstamp(): this;
 
   /** Assert that duration is less than threshold (ms) */
@@ -297,14 +328,12 @@ class DenoKvListResultExpectationImpl<T>
 }
 
 /**
- * DenoKvWriteResultExpectation implementation.
+ * DenoKvSetResultExpectation implementation.
  */
-class DenoKvWriteResultExpectationImpl implements DenoKvWriteResultExpectation {
-  readonly #result: DenoKvSetResult | DenoKvDeleteResult | DenoKvAtomicResult;
+class DenoKvSetResultExpectationImpl implements DenoKvSetResultExpectation {
+  readonly #result: DenoKvSetResult;
 
-  constructor(
-    result: DenoKvSetResult | DenoKvDeleteResult | DenoKvAtomicResult,
-  ) {
+  constructor(result: DenoKvSetResult) {
     this.#result = result;
   }
 
@@ -323,7 +352,84 @@ class DenoKvWriteResultExpectationImpl implements DenoKvWriteResultExpectation {
   }
 
   hasVersionstamp(): this {
-    if (!("versionstamp" in this.#result) || !this.#result.versionstamp) {
+    if (!this.#result.versionstamp) {
+      throw new Error("Expected versionstamp, but it is empty");
+    }
+    return this;
+  }
+
+  durationLessThan(ms: number): this {
+    if (this.#result.duration >= ms) {
+      throw new Error(
+        `Expected duration < ${ms}ms, got ${this.#result.duration}ms`,
+      );
+    }
+    return this;
+  }
+}
+
+/**
+ * DenoKvDeleteResultExpectation implementation.
+ */
+class DenoKvDeleteResultExpectationImpl
+  implements DenoKvDeleteResultExpectation {
+  readonly #result: DenoKvDeleteResult;
+
+  constructor(result: DenoKvDeleteResult) {
+    this.#result = result;
+  }
+
+  ok(): this {
+    if (!this.#result.ok) {
+      throw new Error("Expected ok result");
+    }
+    return this;
+  }
+
+  notOk(): this {
+    if (this.#result.ok) {
+      throw new Error("Expected not ok result");
+    }
+    return this;
+  }
+
+  durationLessThan(ms: number): this {
+    if (this.#result.duration >= ms) {
+      throw new Error(
+        `Expected duration < ${ms}ms, got ${this.#result.duration}ms`,
+      );
+    }
+    return this;
+  }
+}
+
+/**
+ * DenoKvAtomicResultExpectation implementation.
+ */
+class DenoKvAtomicResultExpectationImpl
+  implements DenoKvAtomicResultExpectation {
+  readonly #result: DenoKvAtomicResult;
+
+  constructor(result: DenoKvAtomicResult) {
+    this.#result = result;
+  }
+
+  ok(): this {
+    if (!this.#result.ok) {
+      throw new Error("Expected ok result");
+    }
+    return this;
+  }
+
+  notOk(): this {
+    if (this.#result.ok) {
+      throw new Error("Expected not ok result");
+    }
+    return this;
+  }
+
+  hasVersionstamp(): this {
+    if (!this.#result.versionstamp) {
       throw new Error("Expected versionstamp, but it is missing or empty");
     }
     return this;
@@ -364,8 +470,8 @@ export function expectDenoKvListResult<T = any>(
  */
 export function expectDenoKvSetResult(
   result: DenoKvSetResult,
-): DenoKvWriteResultExpectation {
-  return new DenoKvWriteResultExpectationImpl(result);
+): DenoKvSetResultExpectation {
+  return new DenoKvSetResultExpectationImpl(result);
 }
 
 /**
@@ -373,8 +479,8 @@ export function expectDenoKvSetResult(
  */
 export function expectDenoKvDeleteResult(
   result: DenoKvDeleteResult,
-): DenoKvWriteResultExpectation {
-  return new DenoKvWriteResultExpectationImpl(result);
+): DenoKvDeleteResultExpectation {
+  return new DenoKvDeleteResultExpectationImpl(result);
 }
 
 /**
@@ -382,6 +488,6 @@ export function expectDenoKvDeleteResult(
  */
 export function expectDenoKvAtomicResult(
   result: DenoKvAtomicResult,
-): DenoKvWriteResultExpectation {
-  return new DenoKvWriteResultExpectationImpl(result);
+): DenoKvAtomicResultExpectation {
+  return new DenoKvAtomicResultExpectationImpl(result);
 }

@@ -336,6 +336,22 @@ Deno.test("expectDenoKvListResult.ok", async (t) => {
   });
 });
 
+Deno.test("expectDenoKvListResult.notOk", async (t) => {
+  await t.step("passes for not ok result", () => {
+    const result = createListResult({ ok: false });
+    expectDenoKvListResult(result).notOk();
+  });
+
+  await t.step("throws for ok result", () => {
+    const result = createListResult({ ok: true });
+    assertThrows(
+      () => expectDenoKvListResult(result).notOk(),
+      Error,
+      "Expected not ok result",
+    );
+  });
+});
+
 Deno.test("expectDenoKvListResult.noContent", async (t) => {
   await t.step("passes when entries is empty", () => {
     const result = createListResult({ entries: createDenoKvEntries([]) });
@@ -512,6 +528,22 @@ Deno.test("expectDenoKvListResult.entriesMatch", async (t) => {
   });
 });
 
+Deno.test("expectDenoKvListResult.durationLessThan", async (t) => {
+  await t.step("passes when duration is less than threshold", () => {
+    const result = createListResult({ duration: 50 });
+    expectDenoKvListResult(result).durationLessThan(100);
+  });
+
+  await t.step("throws when duration exceeds threshold", () => {
+    const result = createListResult({ duration: 150 });
+    assertThrows(
+      () => expectDenoKvListResult(result).durationLessThan(100),
+      Error,
+      "Expected duration < 100ms, got 150ms",
+    );
+  });
+});
+
 Deno.test("expectDenoKvSetResult.ok", async (t) => {
   await t.step("passes for ok result", () => {
     const result = createSetResult({ ok: true });
@@ -528,10 +560,51 @@ Deno.test("expectDenoKvSetResult.ok", async (t) => {
   });
 });
 
+Deno.test("expectDenoKvSetResult.notOk", async (t) => {
+  await t.step("passes for not ok result", () => {
+    const result = createSetResult({ ok: false });
+    expectDenoKvSetResult(result).notOk();
+  });
+
+  await t.step("throws for ok result", () => {
+    const result = createSetResult({ ok: true });
+    assertThrows(
+      () => expectDenoKvSetResult(result).notOk(),
+      Error,
+      "Expected not ok result",
+    );
+  });
+});
+
 Deno.test("expectDenoKvSetResult.hasVersionstamp", async (t) => {
   await t.step("passes when versionstamp exists", () => {
     const result = createSetResult({ versionstamp: "00000001" });
     expectDenoKvSetResult(result).hasVersionstamp();
+  });
+
+  await t.step("throws when versionstamp is empty", () => {
+    const result = createSetResult({ versionstamp: "" });
+    assertThrows(
+      () => expectDenoKvSetResult(result).hasVersionstamp(),
+      Error,
+      "Expected versionstamp",
+    );
+  });
+});
+
+Deno.test("expectDenoKvSetResult.durationLessThan", async (t) => {
+  await t.step("passes when duration is less than threshold", () => {
+    const result = createSetResult({ duration: 50 });
+    expectDenoKvSetResult(result).durationLessThan(100);
+  });
+
+  await t.step("throws when duration exceeds threshold", () => {
+    const result = createSetResult({ duration: 150 });
+    assertThrows(
+      () => expectDenoKvSetResult(result).durationLessThan(100),
+      Error,
+      "Expected duration < 100ms, got 150ms",
+    );
   });
 });
 
@@ -539,6 +612,47 @@ Deno.test("expectDenoKvDeleteResult.ok", async (t) => {
   await t.step("passes for ok result", () => {
     const result = createDeleteResult({ ok: true });
     expectDenoKvDeleteResult(result).ok();
+  });
+
+  await t.step("throws for not ok result", () => {
+    const result = createDeleteResult({ ok: false });
+    assertThrows(
+      () => expectDenoKvDeleteResult(result).ok(),
+      Error,
+      "Expected ok result",
+    );
+  });
+});
+
+Deno.test("expectDenoKvDeleteResult.notOk", async (t) => {
+  await t.step("passes for not ok result", () => {
+    const result = createDeleteResult({ ok: false });
+    expectDenoKvDeleteResult(result).notOk();
+  });
+
+  await t.step("throws for ok result", () => {
+    const result = createDeleteResult({ ok: true });
+    assertThrows(
+      () => expectDenoKvDeleteResult(result).notOk(),
+      Error,
+      "Expected not ok result",
+    );
+  });
+});
+
+Deno.test("expectDenoKvDeleteResult.durationLessThan", async (t) => {
+  await t.step("passes when duration is less than threshold", () => {
+    const result = createDeleteResult({ duration: 50 });
+    expectDenoKvDeleteResult(result).durationLessThan(100);
+  });
+
+  await t.step("throws when duration exceeds threshold", () => {
+    const result = createDeleteResult({ duration: 150 });
+    assertThrows(
+      () => expectDenoKvDeleteResult(result).durationLessThan(100),
+      Error,
+      "Expected duration < 100ms, got 150ms",
+    );
   });
 });
 
@@ -558,6 +672,22 @@ Deno.test("expectDenoKvAtomicResult.ok", async (t) => {
   });
 });
 
+Deno.test("expectDenoKvAtomicResult.notOk", async (t) => {
+  await t.step("passes for not ok result", () => {
+    const result = createAtomicResult({ ok: false });
+    expectDenoKvAtomicResult(result).notOk();
+  });
+
+  await t.step("throws for ok result", () => {
+    const result = createAtomicResult({ ok: true });
+    assertThrows(
+      () => expectDenoKvAtomicResult(result).notOk(),
+      Error,
+      "Expected not ok result",
+    );
+  });
+});
+
 Deno.test("expectDenoKvAtomicResult.hasVersionstamp", async (t) => {
   await t.step("passes when versionstamp exists", () => {
     const result = createAtomicResult({ versionstamp: "00000001" });
@@ -573,6 +703,22 @@ Deno.test("expectDenoKvAtomicResult.hasVersionstamp", async (t) => {
       () => expectDenoKvAtomicResult(result).hasVersionstamp(),
       Error,
       "Expected versionstamp",
+    );
+  });
+});
+
+Deno.test("expectDenoKvAtomicResult.durationLessThan", async (t) => {
+  await t.step("passes when duration is less than threshold", () => {
+    const result = createAtomicResult({ duration: 50 });
+    expectDenoKvAtomicResult(result).durationLessThan(100);
+  });
+
+  await t.step("throws when duration exceeds threshold", () => {
+    const result = createAtomicResult({ duration: 150 });
+    assertThrows(
+      () => expectDenoKvAtomicResult(result).durationLessThan(100),
+      Error,
+      "Expected duration < 100ms, got 150ms",
     );
   });
 });
