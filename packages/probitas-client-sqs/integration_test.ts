@@ -349,9 +349,191 @@ Deno.test({
         assertEquals(received.length, 5);
         assertEquals(received.sort(), messages.sort());
       });
+
+      await t.step("Queue management", async (t) => {
+        await t.step("ensureQueue creates a new queue", async () => {
+          const newQueueName = `test-ensure-queue-${crypto.randomUUID()}`;
+          const result = await client.ensureQueue(newQueueName);
+
+          assertEquals(result.ok, true);
+          assertEquals(typeof result.queueUrl, "string");
+          assertEquals(result.queueUrl.includes(newQueueName), true);
+          assertEquals(typeof result.duration, "number");
+
+          // Clean up the queue we created
+          await client.deleteQueue(result.queueUrl);
+        });
+
+        await t.step(
+          "ensureQueue is idempotent for existing queue",
+          async () => {
+            const existingQueueName = `test-idempotent-${crypto.randomUUID()}`;
+
+            // Create queue first time
+            const firstResult = await client.ensureQueue(existingQueueName);
+            assertEquals(firstResult.ok, true);
+
+            // Create queue second time (should return same URL)
+            const secondResult = await client.ensureQueue(existingQueueName);
+            assertEquals(secondResult.ok, true);
+            assertEquals(secondResult.queueUrl, firstResult.queueUrl);
+
+            // Clean up
+            await client.deleteQueue(firstResult.queueUrl);
+          },
+        );
+
+        await t.step("ensureQueue with attributes", async () => {
+          const queueWithAttrs = `test-attrs-${crypto.randomUUID()}`;
+          const result = await client.ensureQueue(queueWithAttrs, {
+            attributes: {
+              DelaySeconds: "5",
+              MessageRetentionPeriod: "86400",
+            },
+          });
+
+          assertEquals(result.ok, true);
+          assertEquals(typeof result.queueUrl, "string");
+
+          // Clean up
+          await client.deleteQueue(result.queueUrl);
+        });
+
+        await t.step("deleteQueue removes a queue", async () => {
+          const queueToDelete = `test-delete-${crypto.randomUUID()}`;
+          const createResult = await client.ensureQueue(queueToDelete);
+          assertEquals(createResult.ok, true);
+
+          const deleteResult = await client.deleteQueue(createResult.queueUrl);
+          assertEquals(deleteResult.ok, true);
+          assertEquals(typeof deleteResult.duration, "number");
+        });
+      });
     } finally {
       await client.close();
       await cleanup();
+    }
+  },
+});
+
+Deno.test({
+  name: "Integration: SQS Client without queueUrl",
+  ignore: !(await isSqsAvailable()),
+  async fn(t) {
+    // Create client without queueUrl
+    const client = await createSqsClient({
+      endpoint: SQS_ENDPOINT,
+      region: SQS_REGION,
+      credentials: {
+        accessKeyId: "test",
+        secretAccessKey: "test",
+      },
+    });
+
+    let createdQueueUrl: string | undefined;
+
+    try {
+      await t.step("queueUrl is initially undefined", () => {
+        assertEquals(client.queueUrl, undefined);
+      });
+
+      await t.step(
+        "send throws when queueUrl is not set",
+        async () => {
+          const error = await assertRejects(
+            () => client.send("test"),
+            SqsCommandError,
+          );
+          assertInstanceOf(error, SqsCommandError);
+          assertEquals(
+            error.message.includes("Queue URL is required"),
+            true,
+          );
+        },
+      );
+
+      await t.step(
+        "ensureQueue sets queueUrl automatically",
+        async () => {
+          const queueName = `test-auto-url-${crypto.randomUUID()}`;
+          const ensureResult = await client.ensureQueue(queueName);
+          assertEquals(ensureResult.ok, true);
+          createdQueueUrl = ensureResult.queueUrl;
+
+          // queueUrl should be set automatically
+          assertEquals(client.queueUrl, createdQueueUrl);
+
+          // Now send and receive should work on the same client
+          const sendResult = await client.send(
+            "test message after ensureQueue",
+          );
+          assertEquals(sendResult.ok, true);
+
+          const receiveResult = await client.receive({
+            maxMessages: 1,
+            waitTimeSeconds: 1,
+          });
+          assertEquals(receiveResult.ok, true);
+          assertEquals(receiveResult.messages.length, 1);
+          assertEquals(
+            receiveResult.messages.first()?.body,
+            "test message after ensureQueue",
+          );
+        },
+      );
+
+      await t.step(
+        "setQueueUrl changes the target queue",
+        async () => {
+          // Create another queue
+          const anotherQueueName = `test-another-${crypto.randomUUID()}`;
+          const anotherResult = await client.ensureQueue(anotherQueueName);
+          assertEquals(anotherResult.ok, true);
+
+          // Create a second client and set queue URL manually
+          const client2 = await createSqsClient({
+            endpoint: SQS_ENDPOINT,
+            region: SQS_REGION,
+            credentials: {
+              accessKeyId: "test",
+              secretAccessKey: "test",
+            },
+          });
+
+          try {
+            // Initially undefined
+            assertEquals(client2.queueUrl, undefined);
+
+            // Set queue URL manually
+            client2.setQueueUrl(anotherResult.queueUrl);
+            assertEquals(client2.queueUrl, anotherResult.queueUrl);
+
+            // Now send should work
+            const sendResult = await client2.send("message via setQueueUrl");
+            assertEquals(sendResult.ok, true);
+
+            const receiveResult = await client2.receive({
+              maxMessages: 1,
+              waitTimeSeconds: 1,
+            });
+            assertEquals(receiveResult.ok, true);
+            assertEquals(
+              receiveResult.messages.first()?.body,
+              "message via setQueueUrl",
+            );
+          } finally {
+            await client2.close();
+            // Clean up the second queue
+            await client.deleteQueue(anotherResult.queueUrl);
+          }
+        },
+      );
+    } finally {
+      // Clean up created queue
+      if (createdQueueUrl) {
+        await client.deleteQueue(createdQueueUrl);
+      }
+      await client.close();
     }
   },
 });
