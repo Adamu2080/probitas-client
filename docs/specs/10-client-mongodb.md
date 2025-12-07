@@ -187,8 +187,14 @@ function expectMongoResult(result: MongoResult); // returns the expectation matc
 ## MongoClient
 
 ```typescript
+interface MongoConnectionConfig extends CommonConnectionConfig {
+  readonly database?: string;
+  readonly authSource?: string;
+  readonly replicaSet?: string;
+}
+
 interface MongoClientConfig extends CommonOptions {
-  readonly uri: string;
+  readonly url: string | MongoConnectionConfig;
   readonly database: string;
 }
 
@@ -269,7 +275,7 @@ import {
 } from "@probitas/client-mongodb";
 
 const mongo = await createMongoClient({
-  uri: "mongodb://localhost:27017",
+  url: "mongodb://localhost:27017",
   database: "testdb",
 });
 

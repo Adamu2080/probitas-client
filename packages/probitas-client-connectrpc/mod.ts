@@ -27,7 +27,7 @@
  *
  * // Create client (uses reflection by default)
  * const client = createConnectRpcClient({
- *   address: "localhost:50051",
+ *   url: "http://localhost:50051",
  * });
  *
  * // Discover services via reflection
@@ -73,7 +73,7 @@
  * ## Using with `using` Statement
  *
  * ```ts
- * await using client = createConnectRpcClient({ address: "localhost:50051" });
+ * await using client = createConnectRpcClient({ url: "http://localhost:50051" });
  *
  * const res = await client.call("echo.EchoService", "echo", { message: "test" });
  * expectConnectRpcResponse(res).ok();

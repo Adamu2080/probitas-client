@@ -25,7 +25,7 @@
  * import { createMongoClient, expectMongoResult } from "@probitas/client-mongodb";
  *
  * const client = await createMongoClient({
- *   uri: "mongodb://localhost:27017",
+ *   url: "mongodb://localhost:27017",
  *   database: "testdb",
  * });
  *
@@ -76,7 +76,7 @@
  *
  * ```ts
  * await using client = await createMongoClient({
- *   uri: "mongodb://localhost:27017",
+ *   url: "mongodb://localhost:27017",
  *   database: "testdb",
  * });
  *

@@ -88,12 +88,26 @@ function expectRedisArrayResult<T = string>(
 ## RedisClient
 
 ```typescript
-interface RedisClientConfig extends CommonOptions {
-  readonly url?: string;
-  readonly host?: string;
+/**
+ * Redis connection configuration object.
+ */
+interface RedisConnectionConfig {
+  /** Host name or IP address */
+  readonly host: string;
+
+  /** Port number (default: 6379) */
   readonly port?: number;
+
+  /** Password for authentication */
   readonly password?: string;
+
+  /** Database index (default: 0) */
   readonly db?: number;
+}
+
+interface RedisClientConfig extends CommonOptions {
+  /** Connection URL (string or config object) */
+  readonly url: string | RedisConnectionConfig;
 }
 
 interface RedisClient extends AsyncDisposable {
@@ -207,8 +221,7 @@ import {
 } from "@probitas/client-redis";
 
 const redis = await createRedisClient({
-  host: "localhost",
-  port: 6379,
+  url: "redis://localhost:6379",
 });
 
 // Strings
@@ -226,6 +239,11 @@ const tx = redis.multi();
 tx.set("x", "1");
 tx.incr("x");
 const txResult = await tx.exec();
+
+// Using connection config object
+const redisWithConfig = await createRedisClient({
+  url: { host: "localhost", port: 6379, db: 0 },
+});
 
 await redis.close();
 ```

@@ -37,7 +37,7 @@ Deno.test({
   name: "Integration: echo-graphql",
   ignore: !(await isGraphqlServerAvailable()),
   async fn(t) {
-    const client = createGraphqlClient({ endpoint: GRAPHQL_URL });
+    const client = createGraphqlClient({ url: GRAPHQL_URL });
 
     await t.step("introspection query - __typename", async () => {
       const res = await client.query<{ __typename: string }>(
@@ -101,7 +101,7 @@ Deno.test({
 
     await t.step("echoError returns GraphQL error", async () => {
       const clientNoThrow = createGraphqlClient({
-        endpoint: GRAPHQL_URL,
+        url: GRAPHQL_URL,
         throwOnError: false,
       });
 
@@ -123,7 +123,7 @@ Deno.test({
       "echoPartialError returns partial data with errors",
       async () => {
         const clientNoThrow = createGraphqlClient({
-          endpoint: GRAPHQL_URL,
+          url: GRAPHQL_URL,
           throwOnError: false,
         });
 
@@ -192,7 +192,7 @@ Deno.test({
     });
 
     await t.step("using await using (AsyncDisposable)", async () => {
-      await using c = createGraphqlClient({ endpoint: GRAPHQL_URL });
+      await using c = createGraphqlClient({ url: GRAPHQL_URL });
 
       const res = await c.query("{ __typename }");
       expectGraphqlResponse(res).ok();
@@ -200,7 +200,7 @@ Deno.test({
 
     await t.step("default headers from config", async () => {
       const clientWithHeaders = createGraphqlClient({
-        endpoint: GRAPHQL_URL,
+        url: GRAPHQL_URL,
         headers: {
           "Authorization": "Bearer test-token",
           "X-Custom-Header": "custom-value",
@@ -215,7 +215,7 @@ Deno.test({
 
     await t.step("request headers override config headers", async () => {
       const clientWithHeaders = createGraphqlClient({
-        endpoint: GRAPHQL_URL,
+        url: GRAPHQL_URL,
         headers: { "X-Header": "from-config" },
       });
 
@@ -248,7 +248,7 @@ Deno.test({
       "echoError query returns GraphQL error in response",
       async () => {
         const clientNoThrow = createGraphqlClient({
-          endpoint: GRAPHQL_URL,
+          url: GRAPHQL_URL,
           throwOnError: false,
         });
 
@@ -403,7 +403,7 @@ Deno.test({
 
     await t.step("subscription - countdown", async () => {
       const wsClient = createGraphqlClient({
-        endpoint: GRAPHQL_URL,
+        url: GRAPHQL_URL,
         wsEndpoint: GRAPHQL_URL.replace("http", "ws"),
       });
 
@@ -431,7 +431,7 @@ Deno.test({
 
     await t.step("echoHeaders - verify headers delivery", async () => {
       const clientWithHeaders = createGraphqlClient({
-        endpoint: GRAPHQL_URL,
+        url: GRAPHQL_URL,
         headers: {
           "Authorization": "Bearer test-token-123",
           "X-Client-Id": "probitas-integration-test",

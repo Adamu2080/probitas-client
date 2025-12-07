@@ -1,4 +1,4 @@
-import type { CommonOptions } from "@probitas/client";
+import type { CommonConnectionConfig, CommonOptions } from "@probitas/client";
 
 /**
  * GraphQL error item as per GraphQL specification.
@@ -72,11 +72,43 @@ export interface GraphqlOptions extends CommonOptions {
 }
 
 /**
+ * GraphQL connection configuration.
+ *
+ * Extends CommonConnectionConfig with GraphQL-specific options.
+ */
+export interface GraphqlConnectionConfig extends CommonConnectionConfig {
+  /**
+   * Protocol to use.
+   * @default "http"
+   */
+  readonly protocol?: "http" | "https";
+
+  /**
+   * GraphQL endpoint path.
+   * @default "/graphql"
+   */
+  readonly path?: string;
+}
+
+/**
  * GraphQL client configuration.
  */
 export interface GraphqlClientConfig extends CommonOptions {
-  /** GraphQL endpoint URL */
-  readonly endpoint: string;
+  /**
+   * GraphQL endpoint URL.
+   *
+   * Can be a URL string or a connection configuration object.
+   *
+   * @example
+   * ```ts
+   * // String URL
+   * { url: "http://localhost:4000/graphql" }
+   *
+   * // Connection config object
+   * { url: { host: "api.example.com", port: 443, protocol: "https" } }
+   * ```
+   */
+  readonly url: string | GraphqlConnectionConfig;
 
   /** Default headers for all requests */
   readonly headers?: Record<string, string>;

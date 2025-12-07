@@ -24,7 +24,7 @@
  * ```ts
  * import { createHttpClient, expectHttpResponse } from "@probitas/client-http";
  *
- * const http = createHttpClient({ baseUrl: "http://localhost:3000" });
+ * const http = createHttpClient({ url: "http://localhost:3000" });
  *
  * // GET request with assertions
  * const res = await http.get("/users/123");
@@ -49,7 +49,7 @@
  * ## Using with `using` Statement
  *
  * ```ts
- * await using http = createHttpClient({ baseUrl: "http://localhost:3000" });
+ * await using http = createHttpClient({ url: "http://localhost:3000" });
  *
  * const res = await http.get("/health");
  * expectHttpResponse(res).ok();

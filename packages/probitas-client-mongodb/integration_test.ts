@@ -2,13 +2,13 @@ import { assertEquals, assertExists } from "@std/assert";
 import { createMongoClient, expectMongoResult } from "./mod.ts";
 import type { MongoClient } from "./types.ts";
 
-const MONGODB_URI = Deno.env.get("MONGODB_URI") ?? "mongodb://localhost:27017";
+const MONGODB_URL = Deno.env.get("MONGODB_URL") ?? "mongodb://localhost:27017";
 const MONGODB_DATABASE = Deno.env.get("MONGODB_DATABASE") ?? "testdb";
 
 async function isServiceAvailable(): Promise<boolean> {
   try {
     const client = await createMongoClient({
-      uri: MONGODB_URI,
+      url: MONGODB_URL,
       database: MONGODB_DATABASE,
       timeout: 2000,
     });
@@ -22,7 +22,7 @@ async function isServiceAvailable(): Promise<boolean> {
 async function isReplicaSet(): Promise<boolean> {
   try {
     const client = await createMongoClient({
-      uri: MONGODB_URI,
+      url: MONGODB_URL,
       database: MONGODB_DATABASE,
       timeout: 2000,
     });
@@ -61,7 +61,7 @@ Deno.test({
 
     await t.step("setup: create client", async () => {
       client = await createMongoClient({
-        uri: MONGODB_URI,
+        url: MONGODB_URL,
         database: MONGODB_DATABASE,
       });
       assertExists(client);
@@ -231,7 +231,7 @@ Deno.test({
   ignore: !(await isReplicaSet()),
   async fn(t) {
     const client = await createMongoClient({
-      uri: MONGODB_URI,
+      url: MONGODB_URL,
       database: MONGODB_DATABASE,
     });
 
@@ -262,7 +262,7 @@ Deno.test({
   ignore: !(await isServiceAvailable()),
   async fn(t) {
     const client = await createMongoClient({
-      uri: MONGODB_URI,
+      url: MONGODB_URL,
       database: MONGODB_DATABASE,
     });
 

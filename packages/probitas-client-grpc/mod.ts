@@ -29,7 +29,7 @@
  *
  * // Create client (uses reflection by default)
  * const client = createGrpcClient({
- *   address: "localhost:50051",
+ *   url: "http://localhost:50051",
  * });
  *
  * // Call a method with fluent assertions
@@ -62,7 +62,7 @@
  * ## Using with `using` Statement
  *
  * ```ts
- * await using client = createGrpcClient({ address: "localhost:50051" });
+ * await using client = createGrpcClient({ url: "http://localhost:50051" });
  *
  * const res = await client.call("echo.EchoService", "echo", { message: "test" });
  * expectGrpcResponse(res).ok();
@@ -145,7 +145,7 @@ export interface GrpcClientConfig
  * @example Basic usage with reflection
  * ```ts
  * const client = createGrpcClient({
- *   address: "localhost:50051",
+ *   url: "http://localhost:50051",
  * });
  *
  * // Call a method
@@ -162,7 +162,7 @@ export interface GrpcClientConfig
  * @example Service discovery with reflection
  * ```ts
  * const client = createGrpcClient({
- *   address: "localhost:50051",
+ *   url: "http://localhost:50051",
  * });
  *
  * // Discover available services
@@ -193,7 +193,7 @@ export interface GrpcClientConfig
  * @example Using `await using` for automatic cleanup
  * ```ts
  * await using client = createGrpcClient({
- *   address: "localhost:50051",
+ *   url: "http://localhost:50051",
  * });
  *
  * const res = await client.call("echo.EchoService", "echo", { message: "test" });

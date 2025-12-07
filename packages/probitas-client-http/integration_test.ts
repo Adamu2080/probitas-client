@@ -32,7 +32,7 @@ Deno.test({
   name: "Integration: echo-http",
   ignore: !(await isEchoHttpAvailable()),
   async fn(t) {
-    const client = createHttpClient({ baseUrl: ECHO_HTTP_URL });
+    const client = createHttpClient({ url: ECHO_HTTP_URL });
 
     await t.step("GET /get returns request info", async () => {
       const res = await client.get("/get", {
@@ -173,7 +173,7 @@ Deno.test({
 
     await t.step("uses default headers from config", async () => {
       const clientWithHeaders = createHttpClient({
-        baseUrl: ECHO_HTTP_URL,
+        url: ECHO_HTTP_URL,
         headers: {
           "Authorization": "Bearer token123",
           "X-Api-Version": "v1",
@@ -191,7 +191,7 @@ Deno.test({
 
     await t.step("request headers override config headers", async () => {
       const clientWithHeaders = createHttpClient({
-        baseUrl: ECHO_HTTP_URL,
+        url: ECHO_HTTP_URL,
         headers: { "X-Header": "from-config" },
       });
 
@@ -242,7 +242,7 @@ Deno.test({
 
     await t.step("config-level redirect setting", async () => {
       const clientManual = createHttpClient({
-        baseUrl: ECHO_HTTP_URL,
+        url: ECHO_HTTP_URL,
         redirect: "manual",
         throwOnError: false,
       });
@@ -255,7 +255,7 @@ Deno.test({
 
     await t.step("request redirect overrides config redirect", async () => {
       const clientManual = createHttpClient({
-        baseUrl: ECHO_HTTP_URL,
+        url: ECHO_HTTP_URL,
         redirect: "manual",
       });
 
@@ -276,7 +276,7 @@ Deno.test({
   async fn(t) {
     await t.step("GET /cookies returns cookies sent by client", async () => {
       const client = createHttpClient({
-        baseUrl: ECHO_HTTP_URL,
+        url: ECHO_HTTP_URL,
         cookies: { initial: { session: "test123", user: "alice" } },
       });
 
@@ -292,7 +292,7 @@ Deno.test({
 
     await t.step("GET /cookies/set stores cookies from response", async () => {
       const client = createHttpClient({
-        baseUrl: ECHO_HTTP_URL,
+        url: ECHO_HTTP_URL,
       });
 
       // /cookies/set sets cookies and redirects; use manual redirect to capture cookies
@@ -313,7 +313,7 @@ Deno.test({
 
     await t.step("cookies persist across multiple requests", async () => {
       const client = createHttpClient({
-        baseUrl: ECHO_HTTP_URL,
+        url: ECHO_HTTP_URL,
       });
 
       // First request sets a cookie (use manual redirect to capture Set-Cookie)
@@ -333,7 +333,7 @@ Deno.test({
 
     await t.step("clearCookies removes all cookies", async () => {
       const client = createHttpClient({
-        baseUrl: ECHO_HTTP_URL,
+        url: ECHO_HTTP_URL,
         cookies: { initial: { initial: "value" } },
       });
 
@@ -355,7 +355,7 @@ Deno.test({
 
     await t.step("setCookie manually adds cookies", async () => {
       const client = createHttpClient({
-        baseUrl: ECHO_HTTP_URL,
+        url: ECHO_HTTP_URL,
       });
 
       // Manually set a cookie

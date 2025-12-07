@@ -68,7 +68,7 @@ export default scenario("Create Order", { tags: ["graphql", "mongodb"] })
     }))
   .resource("mongo", () =>
     createMongoClient({
-      uri: "mongodb://localhost:27017",
+      url: "mongodb://localhost:27017",
       database: "orders",
     }))
   .step("Create order via GraphQL", async (ctx) => {
