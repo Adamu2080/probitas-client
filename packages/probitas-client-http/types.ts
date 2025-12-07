@@ -46,7 +46,7 @@ export interface HttpResponse {
    * @template T - defaults to any for test convenience
    */
   // deno-lint-ignore no-explicit-any
-  json<T = any>(): T | null;
+  data<T = any>(): T | null;
 
   // --- Additional properties ---
 

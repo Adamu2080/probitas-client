@@ -36,7 +36,7 @@ function createMockResponse(
     },
     text: () => body ? new TextDecoder().decode(body) : null,
     // deno-lint-ignore no-explicit-any
-    json: <T = any>() =>
+    data: <T = any>() =>
       body ? JSON.parse(new TextDecoder().decode(body)) as T : null,
   };
 }

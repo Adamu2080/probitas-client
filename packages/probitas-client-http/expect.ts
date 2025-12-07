@@ -231,11 +231,11 @@ class HttpResponseExpectationImpl implements HttpResponseExpectation {
 
   // deno-lint-ignore no-explicit-any
   dataContains<T = any>(subset: Partial<T>): this {
-    const json = this.#response.json();
-    if (json === null) {
+    const data = this.#response.data();
+    if (data === null) {
       throw new Error("Expected data to contain properties, but body is null");
     }
-    if (!containsSubset(json, subset)) {
+    if (!containsSubset(data, subset)) {
       throw new Error("Data does not contain expected properties");
     }
     return this;
@@ -243,11 +243,11 @@ class HttpResponseExpectationImpl implements HttpResponseExpectation {
 
   // deno-lint-ignore no-explicit-any
   dataMatch<T = any>(matcher: (body: T) => void): this {
-    const json = this.#response.json<T>();
-    if (json === null) {
+    const data = this.#response.data<T>();
+    if (data === null) {
       throw new Error("Expected data for matching, but body is null");
     }
-    matcher(json);
+    matcher(data);
     return this;
   }
 

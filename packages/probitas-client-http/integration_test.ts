@@ -45,15 +45,15 @@ Deno.test({
         .status(200)
         .contentType(/^application\/json/);
 
-      const json = res.json<{
+      const data = res.data<{
         args: Record<string, string>;
         headers: Record<string, string>;
         url: string;
       }>();
 
-      assertEquals(json?.args.foo, "bar");
-      assertEquals(json?.args.num, "42");
-      assertEquals(json?.headers["X-Custom-Header"], "test-value");
+      assertEquals(data?.args.foo, "bar");
+      assertEquals(data?.args.num, "42");
+      assertEquals(data?.headers["X-Custom-Header"], "test-value");
     });
 
     await t.step("POST /post with JSON body", async () => {
@@ -65,13 +65,13 @@ Deno.test({
         .status(200)
         .contentType(/^application\/json/);
 
-      const json = res.json<{
+      const data = res.data<{
         json: typeof payload;
         headers: Record<string, string>;
       }>();
 
-      assertEquals(json?.json, payload);
-      assertEquals(json?.headers["Content-Type"], "application/json");
+      assertEquals(data?.json, payload);
+      assertEquals(data?.headers["Content-Type"], "application/json");
     });
 
     await t.step("POST /post with form data", async () => {
@@ -83,9 +83,9 @@ Deno.test({
 
       expectHttpResponse(res).ok().status(200);
 
-      const json = res.json<{ form: Record<string, string> }>();
-      assertEquals(json?.form.username, "alice");
-      assertEquals(json?.form.password, "secret");
+      const data = res.data<{ form: Record<string, string> }>();
+      assertEquals(data?.form.username, "alice");
+      assertEquals(data?.form.password, "secret");
     });
 
     await t.step("PUT /put", async () => {
@@ -93,8 +93,8 @@ Deno.test({
 
       expectHttpResponse(res).ok().status(200);
 
-      const json = res.json<{ json: { updated: boolean } }>();
-      assertEquals(json?.json.updated, true);
+      const data = res.data<{ json: { updated: boolean } }>();
+      assertEquals(data?.json.updated, true);
     });
 
     await t.step("PATCH /patch", async () => {
@@ -102,8 +102,8 @@ Deno.test({
 
       expectHttpResponse(res).ok().status(200);
 
-      const json = res.json<{ json: { patched: string } }>();
-      assertEquals(json?.json.patched, "value");
+      const data = res.data<{ json: { patched: string } }>();
+      assertEquals(data?.json.patched, "value");
     });
 
     await t.step("DELETE /delete", async () => {
@@ -137,9 +137,9 @@ Deno.test({
 
       expectHttpResponse(res).ok();
 
-      const json = res.json<{ headers: Record<string, string> }>();
+      const data = res.data<{ headers: Record<string, string> }>();
       // Verify Accept header was sent (echo-http echoes back headers)
-      assertEquals(json?.headers["Accept"], "application/json");
+      assertEquals(data?.headers["Accept"], "application/json");
     });
 
     await t.step("GET /delay/1 measures duration", async () => {
@@ -163,8 +163,8 @@ Deno.test({
       assertEquals(text1, text2);
 
       // Read as JSON
-      const json1 = res.json();
-      const json2 = res.json();
+      const json1 = res.data();
+      const json2 = res.data();
       assertEquals(json1, json2);
 
       // Body bytes are also available
@@ -181,10 +181,10 @@ Deno.test({
       });
 
       const res = await clientWithHeaders.get("/headers");
-      const json = res.json<{ headers: Record<string, string> }>();
+      const data = res.data<{ headers: Record<string, string> }>();
 
-      assertEquals(json?.headers["Authorization"], "Bearer token123");
-      assertEquals(json?.headers["X-Api-Version"], "v1");
+      assertEquals(data?.headers["Authorization"], "Bearer token123");
+      assertEquals(data?.headers["X-Api-Version"], "v1");
 
       await clientWithHeaders.close();
     });
@@ -198,9 +198,9 @@ Deno.test({
       const res = await clientWithHeaders.get("/headers", {
         headers: { "X-Header": "from-request" },
       });
-      const json = res.json<{ headers: Record<string, string> }>();
+      const data = res.data<{ headers: Record<string, string> }>();
 
-      assertEquals(json?.headers["X-Header"], "from-request");
+      assertEquals(data?.headers["X-Header"], "from-request");
 
       await clientWithHeaders.close();
     });
@@ -210,8 +210,8 @@ Deno.test({
 
       expectHttpResponse(res).ok().status(200);
 
-      const json = res.json<{ redirected: boolean }>();
-      assertEquals(json?.redirected, true);
+      const data = res.data<{ redirected: boolean }>();
+      assertEquals(data?.redirected, true);
     });
 
     await t.step("redirect: manual returns redirect response", async () => {
@@ -283,9 +283,9 @@ Deno.test({
       const res = await client.get("/cookies");
 
       expectHttpResponse(res).ok();
-      const json = res.json<{ cookies: Record<string, string> }>();
-      assertEquals(json?.cookies.session, "test123");
-      assertEquals(json?.cookies.user, "alice");
+      const data = res.data<{ cookies: Record<string, string> }>();
+      assertEquals(data?.cookies.session, "test123");
+      assertEquals(data?.cookies.user, "alice");
 
       await client.close();
     });
@@ -325,8 +325,8 @@ Deno.test({
 
       // Second request should send the cookie back
       const res = await client.get("/cookies");
-      const json = res.json<{ cookies: Record<string, string> }>();
-      assertEquals(json?.cookies.auth, "bearer-token");
+      const data = res.data<{ cookies: Record<string, string> }>();
+      assertEquals(data?.cookies.auth, "bearer-token");
 
       await client.close();
     });
@@ -339,16 +339,16 @@ Deno.test({
 
       // Verify initial cookie is sent
       let res = await client.get("/cookies");
-      let json = res.json<{ cookies: Record<string, string> }>();
-      assertEquals(json?.cookies.initial, "value");
+      let data = res.data<{ cookies: Record<string, string> }>();
+      assertEquals(data?.cookies.initial, "value");
 
       // Clear cookies
       client.clearCookies();
 
       // Verify no cookies are sent
       res = await client.get("/cookies");
-      json = res.json<{ cookies: Record<string, string> }>();
-      assertEquals(json?.cookies.initial, undefined);
+      data = res.data<{ cookies: Record<string, string> }>();
+      assertEquals(data?.cookies.initial, undefined);
 
       await client.close();
     });
@@ -363,8 +363,8 @@ Deno.test({
 
       // Verify it's sent
       const res = await client.get("/cookies");
-      const json = res.json<{ cookies: Record<string, string> }>();
-      assertEquals(json?.cookies.manual, "cookie-value");
+      const data = res.data<{ cookies: Record<string, string> }>();
+      assertEquals(data?.cookies.manual, "cookie-value");
 
       await client.close();
     });
