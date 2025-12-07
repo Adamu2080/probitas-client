@@ -173,8 +173,6 @@ interface MongoCountResultExpectation {
   countAtLeast(min: number): this;
   countAtMost(max: number): this;
   countBetween(min: number, max: number): this;
-  isEmpty(): this;
-  isNotEmpty(): this;
   durationLessThan(ms: number): this;
 }
 

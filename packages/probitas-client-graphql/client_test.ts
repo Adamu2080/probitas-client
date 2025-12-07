@@ -249,32 +249,6 @@ Deno.test("GraphqlClient.mutation", async (t) => {
   });
 });
 
-Deno.test("GraphqlClient.mutate", async (t) => {
-  await t.step("is an alias for mutation", async () => {
-    let capturedRequest: Request | undefined;
-    const mockFetch = createMockFetch((req) => {
-      capturedRequest = req;
-      return new Response(JSON.stringify({ data: { createUser: { id: 1 } } }));
-    });
-
-    const client = createGraphqlClient({
-      url: "http://localhost:4000/graphql",
-      fetch: mockFetch,
-    });
-
-    const response = await client.mutate(
-      "mutation CreateUser($name: String!) { createUser(name: $name) { id } }",
-      { name: "Jane" },
-    );
-    await client.close();
-
-    const body = await capturedRequest?.json();
-    assertEquals(body.query.includes("mutation"), true);
-    assertEquals(body.variables, { name: "Jane" });
-    assertEquals(response.data(), { createUser: { id: 1 } });
-  });
-});
-
 Deno.test("GraphqlClient.execute", async (t) => {
   await t.step("works for queries", async () => {
     const mockFetch = createMockFetch(() => {

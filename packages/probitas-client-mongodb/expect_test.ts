@@ -732,34 +732,6 @@ Deno.test("expectMongoResult with MongoCountResult", async (t) => {
     );
   });
 
-  await t.step("isEmpty() passes when count is 0", () => {
-    const result = createCountResult(0);
-    expectMongoResult(result).isEmpty();
-  });
-
-  await t.step("isEmpty() throws when count is not 0", () => {
-    const result = createCountResult(5);
-    assertThrows(
-      () => expectMongoResult(result).isEmpty(),
-      Error,
-      "Expected count to be 0, got 5",
-    );
-  });
-
-  await t.step("isNotEmpty() passes when count is not 0", () => {
-    const result = createCountResult(5);
-    expectMongoResult(result).isNotEmpty();
-  });
-
-  await t.step("isNotEmpty() throws when count is 0", () => {
-    const result = createCountResult(0);
-    assertThrows(
-      () => expectMongoResult(result).isNotEmpty(),
-      Error,
-      "Expected count to be non-zero",
-    );
-  });
-
   await t.step("durationLessThan() passes when duration is less", () => {
     const result = createCountResult(10, true, 50);
     expectMongoResult(result).durationLessThan(100);
@@ -782,7 +754,6 @@ Deno.test("expectMongoResult with MongoCountResult", async (t) => {
       .countAtLeast(10)
       .countAtMost(50)
       .countBetween(20, 30)
-      .isNotEmpty()
       .durationLessThan(100);
   });
 });

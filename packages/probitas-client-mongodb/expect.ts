@@ -84,8 +84,6 @@ export interface MongoCountResultExpectation {
   countAtLeast(min: number): this;
   countAtMost(max: number): this;
   countBetween(min: number, max: number): this;
-  isEmpty(): this;
-  isNotEmpty(): this;
   durationLessThan(ms: number): this;
 }
 
@@ -461,22 +459,6 @@ class MongoCountResultExpectationImpl implements MongoCountResultExpectation {
       throw new Error(
         `Expected count between ${min} and ${max}, got ${this.#result.count}`,
       );
-    }
-    return this;
-  }
-
-  isEmpty(): this {
-    if (this.#result.count !== 0) {
-      throw new Error(
-        `Expected count to be 0, got ${this.#result.count}`,
-      );
-    }
-    return this;
-  }
-
-  isNotEmpty(): this {
-    if (this.#result.count === 0) {
-      throw new Error("Expected count to be non-zero, but got 0");
     }
     return this;
   }

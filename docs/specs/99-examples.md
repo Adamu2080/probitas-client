@@ -82,7 +82,7 @@ export default scenario("Create Order", { tags: ["graphql", "mongodb"] })
       }
     `;
 
-    const res = await ctx.resources.gql.mutate(mutation, {
+    const res = await ctx.resources.gql.mutation(mutation, {
       input: {
         items: [{ productId: "PROD-1", quantity: 2 }],
       },

@@ -127,7 +127,12 @@ interface GraphqlClient extends AsyncDisposable {
     variables?: Record<string, unknown>,
     options?: GraphqlOptions,
   ): Promise<GraphqlResponse>;
-  mutate(
+  mutation(
+    document: string,
+    variables?: Record<string, unknown>,
+    options?: GraphqlOptions,
+  ): Promise<GraphqlResponse>;
+  execute(
     document: string,
     variables?: Record<string, unknown>,
     options?: GraphqlOptions,

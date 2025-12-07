@@ -102,15 +102,6 @@ class GraphqlClientImpl implements GraphqlClient {
   }
 
   // deno-lint-ignore no-explicit-any
-  mutate<TData = any, TVariables = Record<string, any>>(
-    mutation: string,
-    variables?: TVariables,
-    options?: GraphqlOptions,
-  ): Promise<GraphqlResponse<TData>> {
-    return this.mutation<TData, TVariables>(mutation, variables, options);
-  }
-
-  // deno-lint-ignore no-explicit-any
   async execute<TData = any, TVariables = Record<string, any>>(
     document: string,
     variables?: TVariables,

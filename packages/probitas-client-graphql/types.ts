@@ -150,14 +150,6 @@ export interface GraphqlClient extends AsyncDisposable {
     options?: GraphqlOptions,
   ): Promise<GraphqlResponse<TData>>;
 
-  /** Execute a GraphQL mutation (alias for mutation) */
-  // deno-lint-ignore no-explicit-any
-  mutate<TData = any, TVariables = Record<string, any>>(
-    mutation: string,
-    variables?: TVariables,
-    options?: GraphqlOptions,
-  ): Promise<GraphqlResponse<TData>>;
-
   /** Execute a GraphQL document (query or mutation) */
   // deno-lint-ignore no-explicit-any
   execute<TData = any, TVariables = Record<string, any>>(
