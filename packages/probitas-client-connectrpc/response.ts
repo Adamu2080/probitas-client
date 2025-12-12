@@ -12,25 +12,56 @@ import type { ConnectRpcStatusCode } from "./status.ts";
  * ConnectRPC response interface.
  */
 export interface ConnectRpcResponse extends ClientResult {
-  /** Result kind identifier */
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"connectrpc"` for ConnectRPC responses. Use this in switch statements
+   * for type-safe narrowing of union types.
+   */
   readonly kind: "connectrpc";
 
-  /** Whether the request was successful (statusCode === 0). */
+  /**
+   * Whether the request was successful (statusCode === 0).
+   *
+   * Inherited from ClientResult. True when statusCode is 0 (OK),
+   * false for any error code.
+   */
   readonly ok: boolean;
 
-  /** ConnectRPC/gRPC status code. */
+  /**
+   * ConnectRPC/gRPC status code.
+   *
+   * 0 indicates success (OK). Non-zero values represent various error conditions
+   * compatible with gRPC status codes.
+   */
   readonly statusCode: ConnectRpcStatusCode;
 
-  /** Status message (null for successful responses). */
+  /**
+   * Status message (null for successful responses).
+   *
+   * Contains error description when ok is false.
+   */
   readonly statusMessage: string | null;
 
-  /** Response headers */
+  /**
+   * Response headers.
+   *
+   * HTTP headers sent at the beginning of the response.
+   */
   readonly headers: Headers;
 
-  /** Response trailers (sent at end of RPC) */
+  /**
+   * Response trailers (sent at end of RPC).
+   *
+   * Additional metadata sent after the response body in streaming RPCs.
+   */
   readonly trailers: Headers;
 
-  /** Response time in milliseconds. */
+  /**
+   * Response time in milliseconds.
+   *
+   * Inherited from ClientResult. Measures the full RPC duration.
+   */
   readonly duration: number;
 
   /**

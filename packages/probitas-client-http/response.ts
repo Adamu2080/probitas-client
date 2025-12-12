@@ -7,7 +7,12 @@ import type { ClientResult } from "@probitas/client";
  * and multiple times (unlike the streaming-based standard Response).
  */
 export interface HttpResponse extends ClientResult {
-  /** Result kind identifier */
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"http"` for HTTP responses. Use this in switch statements
+   * for type-safe narrowing of union types.
+   */
   readonly kind: "http";
 
   // --- Web standard Response compatible properties ---

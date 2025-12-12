@@ -5,6 +5,11 @@ import type { RabbitMqMessage } from "./types.ts";
  * Publish result.
  */
 export interface RabbitMqPublishResult extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"rabbitmq:publish"` for message publish operations.
+   */
   readonly kind: "rabbitmq:publish";
 }
 
@@ -12,7 +17,16 @@ export interface RabbitMqPublishResult extends ClientResult {
  * Consume result (single message retrieval).
  */
 export interface RabbitMqConsumeResult extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"rabbitmq:consume"` for message consumption operations.
+   */
   readonly kind: "rabbitmq:consume";
+
+  /**
+   * The consumed message (null if no message available).
+   */
   readonly message: RabbitMqMessage | null;
 }
 
@@ -20,6 +34,11 @@ export interface RabbitMqConsumeResult extends ClientResult {
  * Ack/Nack result.
  */
 export interface RabbitMqAckResult extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"rabbitmq:ack"` for acknowledgement operations.
+   */
   readonly kind: "rabbitmq:ack";
 }
 
@@ -27,9 +46,26 @@ export interface RabbitMqAckResult extends ClientResult {
  * Queue declaration result.
  */
 export interface RabbitMqQueueResult extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"rabbitmq:queue"` for queue operations.
+   */
   readonly kind: "rabbitmq:queue";
+
+  /**
+   * Name of the queue (server-generated for unnamed exclusive queues).
+   */
   readonly queue: string;
+
+  /**
+   * Number of messages currently in the queue.
+   */
   readonly messageCount: number;
+
+  /**
+   * Number of active consumers for this queue.
+   */
   readonly consumerCount: number;
 }
 
@@ -37,6 +73,11 @@ export interface RabbitMqQueueResult extends ClientResult {
  * Exchange declaration result.
  */
 export interface RabbitMqExchangeResult extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"rabbitmq:exchange"` for exchange operations.
+   */
   readonly kind: "rabbitmq:exchange";
 }
 

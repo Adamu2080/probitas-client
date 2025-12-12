@@ -6,25 +6,55 @@ import type { GraphqlErrorItem } from "./types.ts";
  */
 // deno-lint-ignore no-explicit-any
 export interface GraphqlResponse<T = any> extends ClientResult {
-  /** Result kind identifier */
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"graphql"` for GraphQL responses. Use this in switch statements
+   * for type-safe narrowing of union types.
+   */
   readonly kind: "graphql";
 
-  /** Whether the request was successful (no errors) */
+  /**
+   * Whether the request was successful (no errors).
+   *
+   * Inherited from ClientResult. True when errors array is null or empty,
+   * false when GraphQL errors are present.
+   */
   readonly ok: boolean;
 
-  /** GraphQL errors array (null if no errors) */
+  /**
+   * GraphQL errors array (null if no errors).
+   *
+   * Contains validation, execution, or resolver errors from the GraphQL server.
+   */
   readonly errors: readonly GraphqlErrorItem[] | null;
 
-  /** Response extensions */
+  /**
+   * Response extensions.
+   *
+   * Custom metadata added by the GraphQL server (tracing, metrics, etc.).
+   */
   readonly extensions?: Record<string, unknown>;
 
-  /** Response time in milliseconds */
+  /**
+   * Response time in milliseconds.
+   *
+   * Inherited from ClientResult. Measures the full request/response cycle.
+   */
   readonly duration: number;
 
-  /** HTTP status code */
+  /**
+   * HTTP status code.
+   *
+   * The underlying HTTP status (typically 200 even for GraphQL errors).
+   */
   readonly status: number;
 
-  /** Headers from the HTTP response */
+  /**
+   * Headers from the HTTP response.
+   *
+   * Includes content-type, cache-control, and custom headers.
+   */
   readonly headers: Headers;
 
   /**
