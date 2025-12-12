@@ -1,17 +1,6 @@
 import { SqlRows } from "./rows.ts";
 
 /**
- * Metadata for SQL query results.
- */
-export interface SqlQueryResultMetadata {
-  /** Last inserted ID (for INSERT statements) */
-  readonly lastInsertId?: bigint | string;
-
-  /** Warning messages from the database */
-  readonly warnings?: readonly string[];
-}
-
-/**
  * Options for creating a SqlQueryResult.
  */
 export interface SqlQueryResultInit<T> {
@@ -27,8 +16,11 @@ export interface SqlQueryResultInit<T> {
   /** Query execution duration in milliseconds */
   readonly duration: number;
 
-  /** Additional metadata */
-  readonly metadata: SqlQueryResultMetadata;
+  /** Last inserted ID (for INSERT statements) */
+  readonly lastInsertId?: bigint | string;
+
+  /** Warning messages from the database */
+  readonly warnings?: readonly string[];
 }
 
 /**
@@ -41,14 +33,16 @@ export class SqlQueryResult<T = Record<string, any>> {
   readonly rows: SqlRows<T>;
   readonly rowCount: number;
   readonly duration: number;
-  readonly metadata: SqlQueryResultMetadata;
+  readonly lastInsertId?: bigint | string;
+  readonly warnings?: readonly string[];
 
   constructor(init: SqlQueryResultInit<T>) {
     this.ok = init.ok;
     this.rows = new SqlRows(init.rows);
     this.rowCount = init.rowCount;
     this.duration = init.duration;
-    this.metadata = init.metadata;
+    this.lastInsertId = init.lastInsertId;
+    this.warnings = init.warnings;
   }
 
   /**
