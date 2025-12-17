@@ -24,11 +24,13 @@ When adding a new integration test:
 1. Add service to `compose.yaml` for local development
 2. Add the same service to `.github/workflows/test.yml` `services` section
 3. Use environment variables for service URLs with sensible defaults:
-   ```typescript
+   ```ts
    const SERVICE_URL = Deno.env.get("SERVICE_URL") ?? "http://localhost:8080";
    ```
 4. Use `isServiceAvailable()` pattern to skip tests when service is unavailable:
-   ```typescript
+   ```ts
+   const SERVICE_URL = Deno.env.get("SERVICE_URL") ?? "http://localhost:8080";
+
    async function isServiceAvailable(): Promise<boolean> {
      try {
        const res = await fetch(SERVICE_URL, {
@@ -45,6 +47,7 @@ When adding a new integration test:
      name: "Integration: ServiceName",
      ignore: !(await isServiceAvailable()),
      async fn(t) {
+       console.log(t.name);
        // test implementation
      },
    });
@@ -97,10 +100,11 @@ Use `any` only for user-facing APIs where test convenience matters. Use
 
 All clients must implement `AsyncDisposable` for Probitas integration:
 
-```typescript
+```ts
 export class HttpClient implements AsyncDisposable {
   async [Symbol.asyncDispose](): Promise<void> {
     // Cleanup resources
+    console.log("cleaned up");
   }
 }
 ```
@@ -109,7 +113,22 @@ export class HttpClient implements AsyncDisposable {
 
 Provide generic methods for test convenience:
 
-```typescript
+```ts
+interface User {
+  name: string;
+}
+
+interface HttpResponse {
+  // deno-lint-ignore no-explicit-any
+  json<T = any>(): Promise<T>;
+}
+
+const response: HttpResponse = {
+  async json<T>(): Promise<T> {
+    return {} as T;
+  },
+};
+
 // Allows users to specify expected types without casts
 const data = await response.json<User>();
 ```

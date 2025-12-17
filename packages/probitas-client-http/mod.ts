@@ -22,6 +22,11 @@
  * ```ts
  * import { createHttpClient } from "@probitas/client-http";
  *
+ * interface User {
+ *   id: string;
+ *   name: string;
+ * }
+ *
  * const http = createHttpClient({ url: "http://localhost:3000" });
  *
  * // GET request
@@ -29,7 +34,7 @@
  * console.log("Status:", res.status);
  *
  * // Extract typed data
- * const user = res.json<User>();
+ * const user = res.data<User>();
  *
  * // POST request
  * const created = await http.post("/users", {
@@ -44,11 +49,12 @@
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createHttpClient } from "@probitas/client-http";
+ *
  * await using http = createHttpClient({ url: "http://localhost:3000" });
  *
  * const res = await http.get("/health");
  * console.log("Health:", res.ok);
- * // Client automatically closed when block exits
  * ```
  *
  * ## Related Packages

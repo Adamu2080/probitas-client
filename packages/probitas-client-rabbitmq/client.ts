@@ -244,6 +244,8 @@ function resolveRabbitMqUrl(url: string | RabbitMqConnectionConfig): string {
  *
  * @example Basic usage with string URL
  * ```ts
+ * import { createRabbitMqClient } from "@probitas/client-rabbitmq";
+ *
  * const rabbit = await createRabbitMqClient({
  *   url: "amqp://guest:guest@localhost:5672",
  * });
@@ -260,6 +262,8 @@ function resolveRabbitMqUrl(url: string | RabbitMqConnectionConfig): string {
  *
  * @example With connection config object
  * ```ts
+ * import { createRabbitMqClient } from "@probitas/client-rabbitmq";
+ *
  * const rabbit = await createRabbitMqClient({
  *   url: {
  *     host: "localhost",
@@ -269,42 +273,72 @@ function resolveRabbitMqUrl(url: string | RabbitMqConnectionConfig): string {
  *     vhost: "/",
  *   },
  * });
+ *
+ * await rabbit.close();
  * ```
  *
  * @example Exchange and binding
  * ```ts
+ * import { createRabbitMqClient } from "@probitas/client-rabbitmq";
+ *
+ * const rabbit = await createRabbitMqClient({ url: "amqp://localhost:5672" });
+ * const channel = await rabbit.channel();
+ *
  * // Create exchange and queue
  * await channel.assertExchange("events", "topic", { durable: true });
  * await channel.assertQueue("user-events");
  * await channel.bindQueue("user-events", "events", "user.*");
  *
  * // Publish to exchange
+ * const content = new TextEncoder().encode(JSON.stringify({ id: 1 }));
  * await channel.publish("events", "user.created", content);
+ *
+ * await rabbit.close();
  * ```
  *
  * @example Consuming messages
  * ```ts
+ * import { createRabbitMqClient } from "@probitas/client-rabbitmq";
+ *
+ * const rabbit = await createRabbitMqClient({ url: "amqp://localhost:5672" });
+ * const channel = await rabbit.channel();
+ * await channel.assertQueue("my-queue");
+ *
  * for await (const message of channel.consume("my-queue")) {
  *   console.log("Received:", new TextDecoder().decode(message.content));
  *   await channel.ack(message);
+ *   break;
  * }
+ *
+ * await rabbit.close();
  * ```
  *
  * @example Get single message (polling)
  * ```ts
+ * import { createRabbitMqClient } from "@probitas/client-rabbitmq";
+ *
+ * const rabbit = await createRabbitMqClient({ url: "amqp://localhost:5672" });
+ * const channel = await rabbit.channel();
+ * await channel.assertQueue("my-queue");
+ *
  * const result = await channel.get("my-queue");
  * if (result.message) {
  *   await channel.ack(result.message);
  * }
+ *
+ * await rabbit.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createRabbitMqClient } from "@probitas/client-rabbitmq";
+ *
  * await using rabbit = await createRabbitMqClient({
  *   url: "amqp://localhost:5672",
  * });
  *
  * const channel = await rabbit.channel();
+ * await channel.assertQueue("test");
  * // Client automatically closed when scope exits
  * ```
  */

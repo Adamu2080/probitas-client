@@ -95,13 +95,18 @@ export interface HttpClientConfig extends CommonOptions {
    *
    * Can be a URL string or a connection configuration object.
    *
-   * @example
+   * @example String URL
    * ```ts
-   * // String URL
-   * { url: "http://localhost:3000" }
+   * import type { HttpClientConfig } from "@probitas/client-http";
+   * const config: HttpClientConfig = { url: "http://localhost:3000" };
+   * ```
    *
-   * // Connection config object
-   * { url: { host: "api.example.com", port: 443, protocol: "https" } }
+   * @example Connection config object
+   * ```ts
+   * import type { HttpClientConfig } from "@probitas/client-http";
+   * const config: HttpClientConfig = {
+   *   url: { host: "api.example.com", port: 443, protocol: "https" },
+   * };
    * ```
    */
   readonly url: string | HttpConnectionConfig;

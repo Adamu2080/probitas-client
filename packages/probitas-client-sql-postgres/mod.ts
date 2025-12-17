@@ -47,16 +47,31 @@
  * ## Transactions
  *
  * ```ts
- * await client.transaction(async (tx) => {
+ * import { createPostgresClient } from "@probitas/client-sql-postgres";
+ * import type { SqlTransaction } from "@probitas/client-sql";
+ *
+ * const client = await createPostgresClient({
+ *   url: "postgres://localhost:5432/testdb",
+ * });
+ *
+ * await client.transaction(async (tx: SqlTransaction) => {
  *   await tx.query("INSERT INTO accounts (id, balance) VALUES ($1, $2)", [1, 100]);
  *   await tx.query("INSERT INTO accounts (id, balance) VALUES ($1, $2)", [2, 200]);
  *   // Automatically committed if no error, rolled back on exception
  * }, { isolationLevel: "serializable" });
+ *
+ * await client.close();
  * ```
  *
  * ## LISTEN/NOTIFY
  *
  * ```ts
+ * import { createPostgresClient } from "@probitas/client-sql-postgres";
+ *
+ * const client = await createPostgresClient({
+ *   url: "postgres://localhost:5432/testdb",
+ * });
+ *
  * // Listen for notifications
  * const listener = await client.listen("events");
  * for await (const notification of listener) {
@@ -66,11 +81,15 @@
  *
  * // Send notification
  * await client.notify("events", JSON.stringify({ type: "created", id: 123 }));
+ *
+ * await client.close();
  * ```
  *
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createPostgresClient } from "@probitas/client-sql-postgres";
+ *
  * await using client = await createPostgresClient({
  *   url: "postgres://localhost:5432/testdb",
  * });

@@ -53,16 +53,23 @@
  * ## Transactions
  *
  * ```ts
- * await client.transaction(async (tx) => {
+ * import { createDuckDbClient } from "@probitas/client-sql-duckdb";
+ * import type { SqlTransaction } from "@probitas/client-sql";
+ *
+ * const client = await createDuckDbClient({ path: ":memory:" });
+ * await client.transaction(async (tx: SqlTransaction) => {
  *   await tx.query("INSERT INTO accounts (id, balance) VALUES (?, ?)", [1, 100]);
  *   await tx.query("INSERT INTO accounts (id, balance) VALUES (?, ?)", [2, 200]);
  *   // Automatically committed if no error, rolled back on exception
  * });
+ * await client.close();
  * ```
  *
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createDuckDbClient } from "@probitas/client-sql-duckdb";
+ *
  * await using client = await createDuckDbClient({ path: ":memory:" });
  *
  * const result = await client.query("SELECT 42 as answer");

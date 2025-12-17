@@ -45,6 +45,10 @@
  * ## Service Discovery
  *
  * ```ts
+ * import { createGrpcClient } from "@probitas/client-grpc";
+ *
+ * const client = createGrpcClient({ url: "http://localhost:50051" });
+ *
  * // Discover available services
  * const services = await client.reflection.listServices();
  * console.log("Services:", services);
@@ -52,11 +56,15 @@
  * // Get method information
  * const info = await client.reflection.getServiceInfo("echo.EchoService");
  * console.log("Methods:", info.methods);
+ *
+ * await client.close();
  * ```
  *
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createGrpcClient } from "@probitas/client-grpc";
+ *
  * await using client = createGrpcClient({ url: "http://localhost:50051" });
  *
  * const res = await client.call("echo.EchoService", "echo", { message: "test" });
@@ -136,6 +144,8 @@ export interface GrpcClientConfig
  *
  * @example Basic usage with reflection
  * ```ts
+ * import { createGrpcClient } from "@probitas/client-grpc";
+ *
  * const client = createGrpcClient({
  *   url: "http://localhost:50051",
  * });
@@ -153,6 +163,8 @@ export interface GrpcClientConfig
  *
  * @example Service discovery with reflection
  * ```ts
+ * import { createGrpcClient } from "@probitas/client-grpc";
+ *
  * const client = createGrpcClient({
  *   url: "http://localhost:50051",
  * });
@@ -170,6 +182,10 @@ export interface GrpcClientConfig
  *
  * @example Testing error responses
  * ```ts
+ * import { createGrpcClient } from "@probitas/client-grpc";
+ *
+ * const client = createGrpcClient({ url: "http://localhost:50051" });
+ *
  * const response = await client.call(
  *   "user.UserService",
  *   "getUser",
@@ -178,12 +194,16 @@ export interface GrpcClientConfig
  * );
  *
  * if (!response.ok) {
- *   console.log("Error code:", response.code);  // NOT_FOUND = 5
+ *   console.log("Error code:", response.statusCode);  // NOT_FOUND = 5
  * }
+ *
+ * await client.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createGrpcClient } from "@probitas/client-grpc";
+ *
  * await using client = createGrpcClient({
  *   url: "http://localhost:50051",
  * });

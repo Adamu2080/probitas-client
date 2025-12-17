@@ -378,6 +378,8 @@ class HttpClientImpl implements HttpClient {
  *
  * @example Basic usage with string URL
  * ```ts
+ * import { createHttpClient } from "@probitas/client-http";
+ *
  * const http = createHttpClient({ url: "http://localhost:3000" });
  *
  * const response = await http.get("/users/123");
@@ -388,13 +390,18 @@ class HttpClientImpl implements HttpClient {
  *
  * @example With connection config object
  * ```ts
+ * import { createHttpClient } from "@probitas/client-http";
+ *
  * const http = createHttpClient({
  *   url: { host: "api.example.com", port: 443, protocol: "https" },
  * });
+ * await http.close();
  * ```
  *
  * @example With default headers
  * ```ts
+ * import { createHttpClient } from "@probitas/client-http";
+ *
  * const http = createHttpClient({
  *   url: "http://localhost:3000",
  *   headers: {
@@ -402,13 +409,16 @@ class HttpClientImpl implements HttpClient {
  *     "Accept": "application/json",
  *   },
  * });
+ * await http.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createHttpClient } from "@probitas/client-http";
+ *
  * await using http = createHttpClient({ url: "http://localhost:3000" });
  * const response = await http.get("/health");
- * // Client automatically closed when scope exits
+ * console.log(response.ok);
  * ```
  */
 export function createHttpClient(config: HttpClientConfig): HttpClient {

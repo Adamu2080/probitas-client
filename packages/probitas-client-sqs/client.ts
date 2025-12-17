@@ -246,9 +246,12 @@ function resolveEndpointUrl(
  *
  * @example Basic usage with existing queue
  * ```ts
+ * import { createSqsClient } from "@probitas/client-sqs";
+ *
  * const sqs = await createSqsClient({
  *   region: "ap-northeast-1",
  *   queueUrl: "https://sqs.ap-northeast-1.amazonaws.com/123456789/my-queue",
+ *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
  * });
  *
  * // Send a message
@@ -263,6 +266,8 @@ function resolveEndpointUrl(
  *
  * @example Using LocalStack for local development
  * ```ts
+ * import { createSqsClient } from "@probitas/client-sqs";
+ *
  * const sqs = await createSqsClient({
  *   region: "us-east-1",
  *   url: "http://localhost:4566",
@@ -275,10 +280,21 @@ function resolveEndpointUrl(
  * // Create queue dynamically (also sets queueUrl)
  * const result = await sqs.ensureQueue("test-queue");
  * console.log(result.queueUrl);  // http://localhost:4566/000000000000/test-queue
+ *
+ * await sqs.close();
  * ```
  *
  * @example Receiving messages with long polling
  * ```ts
+ * import { createSqsClient } from "@probitas/client-sqs";
+ *
+ * const sqs = await createSqsClient({
+ *   region: "us-east-1",
+ *   url: "http://localhost:4566",
+ *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
+ * });
+ * await sqs.ensureQueue("test-queue");
+ *
  * // Long polling waits up to 20 seconds for messages
  * const receiveResult = await sqs.receive({
  *   maxMessages: 10,
@@ -296,10 +312,21 @@ function resolveEndpointUrl(
  *   // Delete after successful processing
  *   await sqs.delete(msg.receiptHandle);
  * }
+ *
+ * await sqs.close();
  * ```
  *
  * @example Batch operations for high throughput
  * ```ts
+ * import { createSqsClient } from "@probitas/client-sqs";
+ *
+ * const sqs = await createSqsClient({
+ *   region: "us-east-1",
+ *   url: "http://localhost:4566",
+ *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
+ * });
+ * await sqs.ensureQueue("test-queue");
+ *
  * // Send multiple messages in a single API call
  * const batchResult = await sqs.sendBatch([
  *   { id: "1", body: JSON.stringify({ event: "user.created", userId: "a1" }) },
@@ -311,15 +338,21 @@ function resolveEndpointUrl(
  * console.log(`Failed: ${batchResult.failed.length}`);
  *
  * // Batch delete processed messages
- * const handles = receiveResult.messages.map(m => m.receiptHandle);
+ * const receiveResult = await sqs.receive({ maxMessages: 10 });
+ * const handles = receiveResult.messages.map((m: { receiptHandle: string }) => m.receiptHandle);
  * await sqs.deleteBatch(handles);
+ *
+ * await sqs.close();
  * ```
  *
  * @example FIFO queue with deduplication
  * ```ts
+ * import { createSqsClient } from "@probitas/client-sqs";
+ *
  * const sqs = await createSqsClient({
  *   region: "ap-northeast-1",
  *   queueUrl: "https://sqs.ap-northeast-1.amazonaws.com/123456789/orders.fifo",
+ *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
  * });
  *
  * // FIFO queues require MessageGroupId and optionally MessageDeduplicationId
@@ -327,13 +360,18 @@ function resolveEndpointUrl(
  *   messageGroupId: "orders",
  *   messageDeduplicationId: "order-123-v1",
  * });
+ *
+ * await sqs.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createSqsClient } from "@probitas/client-sqs";
+ *
  * await using sqs = await createSqsClient({
  *   region: "us-east-1",
  *   url: "http://localhost:4566",
+ *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
  * });
  *
  * await sqs.ensureQueue("test-queue");

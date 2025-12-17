@@ -256,6 +256,8 @@ function toMethodInfo(
  *
  * @example Basic usage with reflection
  * ```ts
+ * import { createConnectRpcClient } from "@probitas/client-connectrpc";
+ *
  * const client = createConnectRpcClient({
  *   url: "http://localhost:50051",
  * });
@@ -273,6 +275,8 @@ function toMethodInfo(
  *
  * @example Service discovery with reflection
  * ```ts
+ * import { createConnectRpcClient } from "@probitas/client-connectrpc";
+ *
  * const client = createConnectRpcClient({
  *   url: "http://localhost:50051",
  * });
@@ -290,6 +294,8 @@ function toMethodInfo(
  *
  * @example Using different protocols
  * ```ts
+ * import { createConnectRpcClient } from "@probitas/client-connectrpc";
+ *
  * // Connect protocol (HTTP/1.1 or HTTP/2)
  * const connectClient = createConnectRpcClient({
  *   url: "http://localhost:8080",
@@ -307,10 +313,16 @@ function toMethodInfo(
  *   url: "http://localhost:8080",
  *   protocol: "grpc-web",
  * });
+ *
+ * await connectClient.close();
+ * await grpcClient.close();
+ * await grpcWebClient.close();
  * ```
  *
  * @example Using connection config object
  * ```ts
+ * import { createConnectRpcClient } from "@probitas/client-connectrpc";
+ *
  * const client = createConnectRpcClient({
  *   url: {
  *     host: "grpc.example.com",
@@ -318,10 +330,14 @@ function toMethodInfo(
  *     protocol: "https",
  *   },
  * });
+ *
+ * await client.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createConnectRpcClient } from "@probitas/client-connectrpc";
+ *
  * await using client = createConnectRpcClient({
  *   url: "http://localhost:50051",
  * });

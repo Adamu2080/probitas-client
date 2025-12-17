@@ -27,18 +27,40 @@ packages:
 // Base error class for all client errors
 export class ClientError extends Error {
   readonly kind: string;
-  constructor(message: string, options?: ErrorOptions);
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "ClientError";
+    this.kind = "client";
+  }
 }
 
 // Specialized errors
 export class ConnectionError extends ClientError {
-  kind = "connection";
+  override readonly kind = "connection" as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "ConnectionError";
+  }
 }
+
 export class TimeoutError extends ClientError {
-  kind = "timeout";
+  override readonly kind = "timeout" as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "TimeoutError";
+  }
 }
+
 export class ProtocolError extends ClientError {
-  kind = "protocol";
+  override readonly kind = "protocol" as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "ProtocolError";
+  }
 }
 ```
 
@@ -51,7 +73,7 @@ The `kind` discriminator enables switch-based type guards without relying on
 
 Each client package exports through `mod.ts`:
 
-```typescript
+```ts ignore
 // mod.ts
 export * from "./client.ts";
 export type * from "./types.ts";
@@ -62,6 +84,21 @@ export type * from "./types.ts";
 All clients implement `AsyncDisposable` for automatic resource cleanup:
 
 ```typescript
+interface HttpClientOptions {
+  baseUrl: string;
+}
+
+class HttpClient implements AsyncDisposable {
+  constructor(options: HttpClientOptions) {
+    console.log(options.baseUrl);
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    console.log("cleaned up");
+  }
+}
+
+const options: HttpClientOptions = { baseUrl: "http://localhost:8080" };
 await using client = new HttpClient(options);
 // Resources automatically cleaned up when scope exits
 ```
@@ -74,6 +111,35 @@ This enables clean integration with Probitas scenarios using `setup` and
 Client methods return result types that support fluent assertion chains:
 
 ```typescript
+interface User {
+  name: string;
+  id: number;
+}
+
+interface HttpResult {
+  expectStatus(status: number): void;
+  expectJsonContains(data: unknown): void;
+  json<T = unknown>(): T;
+}
+
+class HttpClient {
+  async get(path: string): Promise<HttpResult> {
+    console.log(path);
+    return {
+      expectStatus(status: number): void {
+        console.log(status);
+      },
+      expectJsonContains(data: unknown): void {
+        console.log(data);
+      },
+      json<T = unknown>(): T {
+        return {} as T;
+      },
+    };
+  }
+}
+
+const client = new HttpClient();
 const result = await client.get("/api/users");
 
 // Type-safe assertions
@@ -89,11 +155,27 @@ const user = result.json<User>();
 Response methods use `any` as default for ergonomic test code:
 
 ```typescript
+interface User {
+  name: string;
+  id: number;
+}
+
+interface HttpResponse {
+  // deno-lint-ignore no-explicit-any
+  json<T = any>(): T;
+}
+
+const response: HttpResponse = {
+  json<T>(): T {
+    return {} as T;
+  },
+};
+
 // No cast needed in tests
-const data = await response.json();
+const data = response.json();
 
 // Type hint when needed
-const user = await response.json<User>();
+const user = response.json<User>();
 ```
 
 ## Protocol-Specific Clients

@@ -112,6 +112,8 @@ export interface DuckDbClient extends AsyncDisposable {
  *
  * @example Using in-memory database (default)
  * ```ts
+ * import { createDuckDbClient } from "@probitas/client-sql-duckdb";
+ *
  * const client = await createDuckDbClient({});
  *
  * const result = await client.query("SELECT 42 as answer");
@@ -122,36 +124,58 @@ export interface DuckDbClient extends AsyncDisposable {
  *
  * @example Using file-based database
  * ```ts
+ * import { createDuckDbClient } from "@probitas/client-sql-duckdb";
+ *
  * const client = await createDuckDbClient({
  *   path: "./data.duckdb",
  * });
+ * await client.close();
  * ```
  *
  * @example Query Parquet files directly
  * ```ts
- * // No need to import - query directly from Parquet
+ * import { createDuckDbClient } from "@probitas/client-sql-duckdb";
+ *
+ * const client = await createDuckDbClient({ path: ":memory:" });
+ *
+ * // Query directly from Parquet
  * const result = await client.queryParquet<{ id: number; value: string }>(
  *   "./data/events.parquet"
  * );
+ *
+ * await client.close();
  * ```
  *
  * @example Query CSV files directly
  * ```ts
+ * import { createDuckDbClient } from "@probitas/client-sql-duckdb";
+ *
+ * const client = await createDuckDbClient({ path: ":memory:" });
+ *
  * const result = await client.queryCsv<{ name: string; age: number }>(
  *   "./data/users.csv"
  * );
+ *
+ * await client.close();
  * ```
  *
  * @example Transaction with auto-commit/rollback
  * ```ts
- * await client.transaction(async (tx) => {
+ * import { createDuckDbClient } from "@probitas/client-sql-duckdb";
+ * import type { SqlTransaction } from "@probitas/client-sql";
+ *
+ * const client = await createDuckDbClient({ path: ":memory:" });
+ * await client.transaction(async (tx: SqlTransaction) => {
  *   await tx.query("INSERT INTO users VALUES ($1, $2)", [1, "Alice"]);
  *   await tx.query("INSERT INTO users VALUES ($1, $2)", [2, "Bob"]);
  * });
+ * await client.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createDuckDbClient } from "@probitas/client-sql-duckdb";
+ *
  * await using client = await createDuckDbClient({});
  *
  * const result = await client.query("SELECT 1");

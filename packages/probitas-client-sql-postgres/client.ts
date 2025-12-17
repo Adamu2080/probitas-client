@@ -98,20 +98,22 @@ export interface PostgresClientConfig extends CommonOptions {
    *
    * @example Using a URL string
    * ```ts
-   * { url: "postgres://user:pass@localhost:5432/mydb" }
+   * import type { PostgresClientConfig } from "@probitas/client-sql-postgres";
+   * const config: PostgresClientConfig = { url: "postgres://user:pass@localhost:5432/mydb" };
    * ```
    *
    * @example Using a configuration object
    * ```ts
-   * {
+   * import type { PostgresClientConfig } from "@probitas/client-sql-postgres";
+   * const config: PostgresClientConfig = {
    *   url: {
    *     host: "localhost",
    *     port: 5432,
    *     database: "mydb",
    *     username: "user",
    *     password: "pass",
-   *   }
-   * }
+   *   },
+   * };
    * ```
    */
   readonly url: string | PostgresConnectionConfig;
@@ -613,6 +615,8 @@ function resolveSslOptions(
  *
  * @example Using URL string
  * ```ts
+ * import { createPostgresClient } from "@probitas/client-sql-postgres";
+ *
  * const client = await createPostgresClient({
  *   url: "postgres://user:pass@localhost:5432/mydb",
  * });
@@ -625,6 +629,8 @@ function resolveSslOptions(
  *
  * @example Using connection config object
  * ```ts
+ * import { createPostgresClient } from "@probitas/client-sql-postgres";
+ *
  * const client = await createPostgresClient({
  *   url: {
  *     host: "localhost",
@@ -636,18 +642,35 @@ function resolveSslOptions(
  *   pool: { max: 10 },
  *   applicationName: "my-app",
  * });
+ *
+ * await client.close();
  * ```
  *
  * @example Transaction with auto-commit/rollback
  * ```ts
- * const user = await client.transaction(async (tx) => {
+ * import { createPostgresClient } from "@probitas/client-sql-postgres";
+ * import type { SqlTransaction } from "@probitas/client-sql";
+ *
+ * const client = await createPostgresClient({
+ *   url: "postgres://localhost:5432/mydb",
+ * });
+ *
+ * const user = await client.transaction(async (tx: SqlTransaction) => {
  *   await tx.query("INSERT INTO users (name) VALUES ($1)", ["John"]);
  *   return await tx.queryOne("SELECT * FROM users WHERE name = $1", ["John"]);
  * });
+ *
+ * await client.close();
  * ```
  *
  * @example LISTEN/NOTIFY for real-time events
  * ```ts
+ * import { createPostgresClient } from "@probitas/client-sql-postgres";
+ *
+ * const client = await createPostgresClient({
+ *   url: "postgres://localhost:5432/mydb",
+ * });
+ *
  * // Listen for notifications
  * for await (const notification of client.listen("user_events")) {
  *   console.log("Received:", notification.payload);
@@ -655,10 +678,14 @@ function resolveSslOptions(
  *
  * // In another session
  * await client.notify("user_events", JSON.stringify({ userId: 123 }));
+ *
+ * await client.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createPostgresClient } from "@probitas/client-sql-postgres";
+ *
  * await using client = await createPostgresClient({
  *   url: "postgres://localhost:5432/mydb",
  * });

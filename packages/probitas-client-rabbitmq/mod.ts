@@ -58,11 +58,17 @@
  * }
  *
  * await client.close();
+ * await client2.close();
  * ```
  *
  * ## Exchange and Binding
  *
  * ```ts
+ * import { createRabbitMqClient } from "@probitas/client-rabbitmq";
+ *
+ * const client = await createRabbitMqClient({ url: "amqp://localhost:5672" });
+ * const channel = await client.channel();
+ *
  * // Declare an exchange
  * await channel.assertExchange("events", "topic", { durable: true });
  *
@@ -75,16 +81,20 @@
  * await channel.publish("events", "user.created", content, {
  *   contentType: "application/json",
  * });
+ *
+ * await client.close();
  * ```
  *
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createRabbitMqClient } from "@probitas/client-rabbitmq";
+ *
  * await using client = await createRabbitMqClient({ url: "amqp://localhost:5672" });
  * const channel = await client.channel();
  *
  * await channel.assertQueue("test");
- * // Client automatically closed when block exits
+ * // Client automatically closed when scope exits
  * ```
  *
  * ## Related Packages

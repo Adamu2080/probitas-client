@@ -66,13 +66,18 @@ export interface GraphqlClientConfig extends CommonOptions {
    *
    * Can be a URL string or a connection configuration object.
    *
-   * @example
+   * @example String URL
    * ```ts
-   * // String URL
-   * { url: "http://localhost:4000/graphql" }
+   * import type { GraphqlClientConfig } from "@probitas/client-graphql";
+   * const config: GraphqlClientConfig = { url: "http://localhost:4000/graphql" };
+   * ```
    *
-   * // Connection config object
-   * { url: { host: "api.example.com", port: 443, protocol: "https" } }
+   * @example Connection config object
+   * ```ts
+   * import type { GraphqlClientConfig } from "@probitas/client-graphql";
+   * const config: GraphqlClientConfig = {
+   *   url: { host: "api.example.com", port: 443, protocol: "https" },
+   * };
    * ```
    */
   readonly url: string | GraphqlConnectionConfig;

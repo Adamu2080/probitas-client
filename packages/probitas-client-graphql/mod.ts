@@ -47,6 +47,8 @@
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createGraphqlClient } from "@probitas/client-graphql";
+ *
  * await using client = createGraphqlClient({ url: "http://localhost:4000/graphql" });
  *
  * const res = await client.query(`{ __typename }`);

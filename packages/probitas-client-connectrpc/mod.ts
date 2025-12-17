@@ -51,6 +51,10 @@
  * ## Testing Error Responses
  *
  * ```ts
+ * import { createConnectRpcClient } from "@probitas/client-connectrpc";
+ *
+ * const client = createConnectRpcClient({ url: "http://localhost:50051" });
+ *
  * // Test error responses without throwing
  * const errorResponse = await client.call(
  *   "echo.EchoService",
@@ -60,13 +64,16 @@
  * );
  *
  * if (!errorResponse.ok) {
- *   console.log("Error code:", errorResponse.code);  // INVALID_ARGUMENT = 3
+ *   console.log("Error code:", errorResponse.statusCode);  // INVALID_ARGUMENT = 3
  * }
+ * await client.close();
  * ```
  *
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createConnectRpcClient } from "@probitas/client-connectrpc";
+ *
  * await using client = createConnectRpcClient({ url: "http://localhost:50051" });
  *
  * const res = await client.call("echo.EchoService", "echo", { message: "test" });

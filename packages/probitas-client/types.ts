@@ -5,13 +5,17 @@
  * for all network-based clients. Each client extends this with service-specific
  * options while maintaining a consistent base.
  *
- * @example
+ * @example Use with string URL
  * ```ts
- * // Use with string URL
- * createHttpClient({ url: "http://localhost:3000" });
+ * import { createHttpClient } from "@probitas/client-http";
+ * const client = createHttpClient({ url: "http://localhost:3000" });
+ * await client[Symbol.asyncDispose]();
+ * ```
  *
- * // Use with config object
- * createHttpClient({
+ * @example Use with config object
+ * ```ts
+ * import { createHttpClient } from "@probitas/client-http";
+ * const client = createHttpClient({
  *   url: {
  *     host: "api.example.com",
  *     port: 443,
@@ -19,6 +23,7 @@
  *     password: "secret",
  *   },
  * });
+ * await client[Symbol.asyncDispose]();
  * ```
  */
 export interface CommonConnectionConfig {
@@ -110,7 +115,21 @@ export interface CommonOptions {
  *
  * @example
  * ```ts
- * function handleResult(result: ClientResult) {
+ * import type { ClientResult } from "@probitas/client";
+ *
+ * interface HttpResponse extends ClientResult {
+ *   readonly kind: "http";
+ *   readonly status: number;
+ * }
+ *
+ * interface SqlQueryResult extends ClientResult {
+ *   readonly kind: "sql";
+ *   readonly rowCount: number;
+ * }
+ *
+ * type MyResult = HttpResponse | SqlQueryResult;
+ *
+ * function handleResult(result: MyResult) {
  *   switch (result.kind) {
  *     case "http":
  *       // TypeScript narrows to HttpResponse

@@ -141,6 +141,8 @@ function parseConnectionUrl(url: string): MySqlConnectionConfig {
  *
  * @example Using URL string
  * ```ts
+ * import { createMySqlClient } from "@probitas/client-sql-mysql";
+ *
  * const client = await createMySqlClient({
  *   url: "mysql://user:password@localhost:3306/testdb",
  * });
@@ -156,6 +158,8 @@ function parseConnectionUrl(url: string): MySqlConnectionConfig {
  *
  * @example Using connection config object
  * ```ts
+ * import { createMySqlClient } from "@probitas/client-sql-mysql";
+ *
  * const client = await createMySqlClient({
  *   url: {
  *     host: "localhost",
@@ -166,18 +170,26 @@ function parseConnectionUrl(url: string): MySqlConnectionConfig {
  *   },
  *   pool: { connectionLimit: 20 },
  * });
+ * await client.close();
  * ```
  *
  * @example Transaction with auto-commit/rollback
  * ```ts
- * const user = await client.transaction(async (tx) => {
+ * import { createMySqlClient } from "@probitas/client-sql-mysql";
+ * import type { SqlTransaction } from "@probitas/client-sql";
+ *
+ * const client = await createMySqlClient({ url: "mysql://localhost:3306/testdb" });
+ * const user = await client.transaction(async (tx: SqlTransaction) => {
  *   await tx.query("INSERT INTO users (name) VALUES (?)", ["Alice"]);
  *   return await tx.queryOne("SELECT LAST_INSERT_ID() as id");
  * });
+ * await client.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createMySqlClient } from "@probitas/client-sql-mysql";
+ *
  * await using client = await createMySqlClient({
  *   url: "mysql://localhost:3306/testdb",
  * });

@@ -36,11 +36,11 @@
  *
  * // Find documents
  * const findResult = await users.find({ name: "Alice" });
- * console.log("Found:", findResult.documents);
+ * console.log("Found:", findResult.docs);
  *
  * // Find one document
  * const user = await users.findOne({ name: "Alice" });
- * console.log("User:", user?.document);
+ * console.log("User:", user?.doc);
  *
  * await client.close();
  * ```
@@ -48,37 +48,40 @@
  * ## Transactions
  *
  * ```ts
- * await client.withSession(async (session) => {
- *   session.startTransaction();
- *   try {
- *     const accounts = client.collection("accounts");
- *     await accounts.updateOne(
- *       { _id: "from" },
- *       { $inc: { balance: -100 } },
- *       { session }
- *     );
- *     await accounts.updateOne(
- *       { _id: "to" },
- *       { $inc: { balance: 100 } },
- *       { session }
- *     );
- *     await session.commitTransaction();
- *   } catch (error) {
- *     await session.abortTransaction();
- *     throw error;
- *   }
+ * import { createMongoClient, type MongoSession } from "@probitas/client-mongodb";
+ *
+ * const client = await createMongoClient({
+ *   url: "mongodb://localhost:27017",
+ *   database: "testdb",
  * });
+ *
+ * await client.transaction(async (session: MongoSession) => {
+ *   const accounts = client.collection("accounts");
+ *   await accounts.updateOne(
+ *     { _id: "from" },
+ *     { $inc: { balance: -100 } },
+ *   );
+ *   await accounts.updateOne(
+ *     { _id: "to" },
+ *     { $inc: { balance: 100 } },
+ *   );
+ * });
+ *
+ * await client.close();
  * ```
  *
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createMongoClient } from "@probitas/client-mongodb";
+ *
  * await using client = await createMongoClient({
  *   url: "mongodb://localhost:27017",
  *   database: "testdb",
  * });
  *
  * const result = await client.collection("test").findOne({});
+ * console.log(result?.doc);
  * // Client automatically closed when block exits
  * ```
  *

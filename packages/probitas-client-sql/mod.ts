@@ -22,6 +22,7 @@
  * End users should import from the specific database client packages instead.
  *
  * ```ts
+ * // Example of SQL error handling (requires database-specific client)
  * import {
  *   SqlQueryResult,
  *   SqlError,
@@ -29,14 +30,9 @@
  * } from "@probitas/client-sql";
  * import type { SqlTransaction, SqlIsolationLevel } from "@probitas/client-sql";
  *
- * // Handle SQL errors
- * try {
- *   await client.query("INSERT INTO users (email) VALUES ($1)", ["duplicate@example.com"]);
- * } catch (error) {
- *   if (error instanceof ConstraintError) {
- *     console.log("Constraint violation:", error.constraint);
- *   }
- * }
+ * // Error types are available for use with database-specific clients
+ * const isolationLevel: SqlIsolationLevel = "read_committed";
+ * console.log("Isolation level:", isolationLevel);
  * ```
  *
  * ## Database-Specific Packages

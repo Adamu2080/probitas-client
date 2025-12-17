@@ -54,7 +54,7 @@ provided in the workspace):
 Use them inside Probitas scenarios with resource-managed clients:
 
 ```typescript
-import { scenario } from "probitas";
+import { scenario } from "jsr:@probitas/probitas";
 import { createHttpClient } from "@probitas/client-http";
 import { assertEquals } from "@std/assert";
 

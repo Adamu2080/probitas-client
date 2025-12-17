@@ -52,16 +52,23 @@
  * ## Transactions
  *
  * ```ts
- * await client.transaction(async (tx) => {
+ * import { createSqliteClient } from "@probitas/client-sql-sqlite";
+ * import type { SqlTransaction } from "@probitas/client-sql";
+ *
+ * const client = await createSqliteClient({ path: ":memory:" });
+ * await client.transaction(async (tx: SqlTransaction) => {
  *   await tx.query("INSERT INTO accounts (id, balance) VALUES (?, ?)", [1, 100]);
  *   await tx.query("INSERT INTO accounts (id, balance) VALUES (?, ?)", [2, 200]);
  *   // Automatically committed if no error, rolled back on exception
  * });
+ * await client.close();
  * ```
  *
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createSqliteClient } from "@probitas/client-sql-sqlite";
+ *
  * await using client = await createSqliteClient({ path: ":memory:" });
  *
  * await client.query("CREATE TABLE test (id INTEGER PRIMARY KEY)");

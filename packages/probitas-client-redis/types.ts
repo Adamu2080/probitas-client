@@ -61,16 +61,24 @@ export interface RedisClientConfig extends CommonOptions {
   /**
    * Redis connection URL or configuration object.
    *
-   * @example
+   * @example String URL
    * ```ts
-   * // String URL
-   * { url: "redis://localhost:6379" }
+   * import type { RedisClientConfig } from "@probitas/client-redis";
+   * const config: RedisClientConfig = { url: "redis://localhost:6379" };
+   * ```
    *
-   * // With password
-   * { url: "redis://:password@localhost:6379/0" }
+   * @example With password
+   * ```ts
+   * import type { RedisClientConfig } from "@probitas/client-redis";
+   * const config: RedisClientConfig = { url: "redis://:password@localhost:6379/0" };
+   * ```
    *
-   * // Config object
-   * { url: { port: 6379, password: "secret", db: 1 } }
+   * @example Config object
+   * ```ts
+   * import type { RedisClientConfig } from "@probitas/client-redis";
+   * const config: RedisClientConfig = {
+   *   url: { port: 6379, password: "secret", db: 1 },
+   * };
    * ```
    */
   readonly url: string | RedisConnectionConfig;

@@ -15,16 +15,25 @@ Each implementation file should export only what is needed for public API:
 
 ```ts
 // client.ts - Export only public API
-export class HttpClient {/* ... */}
-export type { HttpClientOptions };
+export interface HttpClientOptions {
+  baseUrl: string;
+}
+
+export class HttpClient {
+  constructor(options: HttpClientOptions) {
+    console.log(options.baseUrl);
+  }
+}
 
 // Internal helpers stay unexported
-function internalHelper() {/* ... */}
+function internalHelper(): void {
+  console.log("internal");
+}
 ```
 
 Entry point files (`mod.ts`) use `export *` to re-export:
 
-```ts
+```ts ignore
 // mod.ts
 export * from "./client.ts";
 export * from "./result.ts";
@@ -37,8 +46,12 @@ When internal functions need to be tested, use `_internal` namespace:
 
 ```ts
 // parser.ts
+interface Value {
+  value: string;
+}
+
 function parseValue(input: string): Value {
-  // Implementation
+  return { value: input };
 }
 
 // Public API
@@ -109,6 +122,10 @@ Deno's `deno test --doc` validates these examples during CI.
 Use `#private` syntax instead of TypeScript's `private` keyword:
 
 ```ts
+interface Options {
+  baseUrl: string;
+}
+
 // Good - Runtime-enforced privacy
 class HttpClient {
   #baseUrl: string;
@@ -121,8 +138,12 @@ class HttpClient {
 }
 
 // Bad - Only compile-time privacy
-class HttpClient {
+class HttpClientBad {
   private baseUrl: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
 }
 ```
 
@@ -153,9 +174,24 @@ export class ClientError extends Error {
 Use `AsyncDisposableStack` for guaranteed cleanup:
 
 ```ts
+interface HttpClientOptions {
+  baseUrl: string;
+}
+
+class HttpClient implements AsyncDisposable {
+  constructor(options: HttpClientOptions) {
+    console.log(options.baseUrl);
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    console.log("disposed");
+  }
+}
+
 async function runWithResources() {
   await using stack = new AsyncDisposableStack();
 
+  const options: HttpClientOptions = { baseUrl: "http://localhost:8080" };
   const client = new HttpClient(options);
   stack.defer(async () => await client[Symbol.asyncDispose]());
 
@@ -166,13 +202,34 @@ async function runWithResources() {
 All client classes implement `AsyncDisposable`:
 
 ```ts
+interface HttpClientOptions {
+  baseUrl: string;
+}
+
+interface HttpResult {
+  status: number;
+}
+
 export class HttpClient implements AsyncDisposable {
+  #options: HttpClientOptions;
+
+  constructor(options: HttpClientOptions) {
+    this.#options = options;
+  }
+
+  async get(path: string): Promise<HttpResult> {
+    console.log(this.#options.baseUrl, path);
+    return { status: 200 };
+  }
+
   async [Symbol.asyncDispose](): Promise<void> {
     // Close connections, release resources
+    console.log("disposed");
   }
 }
 
 // Usage with explicit resource management
+const options: HttpClientOptions = { baseUrl: "http://localhost:8080" };
 await using client = new HttpClient(options);
 const result = await client.get("/api");
 // Client automatically disposed when scope exits

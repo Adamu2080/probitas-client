@@ -42,6 +42,10 @@
  * ## Atomic Operations
  *
  * ```ts
+ * import { createDenoKvClient } from "@probitas/client-deno-kv";
+ *
+ * const kv = await createDenoKvClient();
+ *
  * // Atomic transaction with version check
  * const atomic = kv.atomic();
  * atomic.check({ key: ["counter"], versionstamp: null }); // Only if key doesn't exist
@@ -54,11 +58,15 @@
  * atomic2.check({ key: ["counter"], versionstamp: current.versionstamp });
  * atomic2.set(["counter"], (current.value ?? 0n) + 1n);
  * await atomic2.commit();
+ *
+ * await kv.close();
  * ```
  *
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createDenoKvClient } from "@probitas/client-deno-kv";
+ *
  * await using kv = await createDenoKvClient();
  *
  * await kv.set(["test"], "value");

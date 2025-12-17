@@ -233,6 +233,8 @@ function convertMongoError(
  *
  * @example Basic usage with connection string
  * ```ts
+ * import { createMongoClient } from "@probitas/client-mongodb";
+ *
  * const mongo = await createMongoClient({
  *   url: "mongodb://localhost:27017",
  *   database: "testdb",
@@ -247,6 +249,8 @@ function convertMongoError(
  *
  * @example Using connection config object
  * ```ts
+ * import { createMongoClient } from "@probitas/client-mongodb";
+ *
  * const mongo = await createMongoClient({
  *   url: {
  *     host: "localhost",
@@ -257,10 +261,20 @@ function convertMongoError(
  *   },
  *   database: "testdb",
  * });
+ *
+ * await mongo.close();
  * ```
  *
  * @example Insert and query documents
  * ```ts
+ * import { createMongoClient } from "@probitas/client-mongodb";
+ *
+ * interface User { name: string; age: number }
+ *
+ * const mongo = await createMongoClient({
+ *   url: "mongodb://localhost:27017",
+ *   database: "testdb",
+ * });
  * const users = mongo.collection<User>("users");
  *
  * // Insert a document
@@ -272,34 +286,63 @@ function convertMongoError(
  *   { age: { $gte: 25 } },
  *   { sort: { name: 1 }, limit: 10 }
  * );
- * console.log("Found:", findResult.documents.length);
+ * console.log("Found:", findResult.docs.length);
+ *
+ * await mongo.close();
  * ```
  *
  * @example Transaction with auto-commit/rollback
  * ```ts
+ * import { createMongoClient } from "@probitas/client-mongodb";
+ *
+ * interface User { _id?: unknown; name: string; age: number }
+ *
+ * const mongo = await createMongoClient({
+ *   url: "mongodb://localhost:27017",
+ *   database: "testdb",
+ * });
+ *
  * await mongo.transaction(async (session) => {
  *   const users = session.collection<User>("users");
  *   await users.insertOne({ name: "Bob", age: 25 });
  *   await users.updateOne({ name: "Alice" }, { $inc: { age: 1 } });
  * });
+ *
+ * await mongo.close();
  * ```
  *
  * @example Aggregation pipeline
  * ```ts
+ * import { createMongoClient } from "@probitas/client-mongodb";
+ *
+ * interface User { name: string; age: number; department: string }
+ *
+ * const mongo = await createMongoClient({
+ *   url: "mongodb://localhost:27017",
+ *   database: "testdb",
+ * });
+ * const users = mongo.collection<User>("users");
+ *
  * const result = await users.aggregate<{ _id: string; avgAge: number }>([
  *   { $group: { _id: "$department", avgAge: { $avg: "$age" } } },
  *   { $sort: { avgAge: -1 } },
  * ]);
+ * console.log(result.docs);
+ *
+ * await mongo.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createMongoClient } from "@probitas/client-mongodb";
+ *
  * await using mongo = await createMongoClient({
  *   url: "mongodb://localhost:27017",
  *   database: "testdb",
  * });
  *
  * const result = await mongo.collection("users").find({});
+ * console.log(result.docs);
  * // Client automatically closed when scope exits
  * ```
  */

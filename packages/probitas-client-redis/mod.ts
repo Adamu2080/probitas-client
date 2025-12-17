@@ -47,16 +47,26 @@
  * ## Transactions
  *
  * ```ts
+ * import { createRedisClient } from "@probitas/client-redis";
+ *
+ * const client = await createRedisClient({ url: "redis://localhost:6379" });
+ *
  * // Atomic transaction
  * const tx = client.multi();
  * tx.incr("counter");
  * tx.get("counter");
  * await tx.exec();
+ *
+ * await client.close();
  * ```
  *
  * ## Pub/Sub
  *
  * ```ts
+ * import { createRedisClient } from "@probitas/client-redis";
+ *
+ * const client = await createRedisClient({ url: "redis://localhost:6379" });
+ *
  * // Subscribe to a channel
  * const subscription = client.subscribe("events");
  * for await (const message of subscription) {
@@ -66,11 +76,15 @@
  *
  * // Publish to a channel
  * await client.publish("events", JSON.stringify({ type: "update" }));
+ *
+ * await client.close();
  * ```
  *
  * ## Connection Configuration
  *
  * ```ts
+ * import { createRedisClient } from "@probitas/client-redis";
+ *
  * // Using URL string
  * const client1 = await createRedisClient({ url: "redis://localhost:6379" });
  *
@@ -81,11 +95,17 @@
  * const client3 = await createRedisClient({
  *   url: { host: "localhost", port: 6379, password: "secret", db: 1 },
  * });
+ *
+ * await client1.close();
+ * await client2.close();
+ * await client3.close();
  * ```
  *
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createRedisClient } from "@probitas/client-redis";
+ *
  * await using client = await createRedisClient({ url: "redis://localhost:6379" });
  *
  * await client.set("test", "value");

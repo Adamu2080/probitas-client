@@ -390,6 +390,13 @@ class DenoKvClientImpl implements DenoKvClient {
  *
  * @example Basic usage with in-memory database
  * ```ts
+ * import { createDenoKvClient } from "@probitas/client-deno-kv";
+ *
+ * interface User {
+ *   name: string;
+ *   email: string;
+ * }
+ *
  * const kv = await createDenoKvClient();
  *
  * await kv.set(["users", "123"], { name: "Alice", email: "alice@example.com" });
@@ -402,36 +409,67 @@ class DenoKvClientImpl implements DenoKvClient {
  *
  * @example Using persistent storage
  * ```ts
+ * import { createDenoKvClient } from "@probitas/client-deno-kv";
+ *
  * const kv = await createDenoKvClient({
  *   path: "./data.kv",
  * });
+ *
+ * await kv.close();
  * ```
  *
  * @example Set with expiration (TTL)
  * ```ts
+ * import { createDenoKvClient } from "@probitas/client-deno-kv";
+ *
+ * const kv = await createDenoKvClient();
+ * const sessionId = "abc123";
+ * const sessionData = { userId: "123", token: "xyz" };
+ *
  * await kv.set(["sessions", sessionId], sessionData, {
  *   expireIn: 3600_000,  // Expire in 1 hour
  * });
+ *
+ * await kv.close();
  * ```
  *
  * @example List entries by prefix
  * ```ts
+ * import { createDenoKvClient } from "@probitas/client-deno-kv";
+ *
+ * interface User {
+ *   name: string;
+ *   email: string;
+ * }
+ *
+ * const kv = await createDenoKvClient();
+ *
  * const result = await kv.list<User>({ prefix: ["users"] });
  * for (const entry of result.entries) {
  *   console.log(entry.key, entry.value);
  * }
+ *
+ * await kv.close();
  * ```
  *
  * @example Atomic transactions
  * ```ts
+ * import { createDenoKvClient } from "@probitas/client-deno-kv";
+ *
+ * const kv = await createDenoKvClient();
+ *
  * const atomicResult = await kv.atomic()
  *   .check({ key: ["counter"], versionstamp: null })
  *   .set(["counter"], 1)
  *   .commit();
+ *
+ * await kv.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createDenoKvClient } from "@probitas/client-deno-kv";
+ *
  * await using kv = await createDenoKvClient();
  *
  * await kv.set(["test"], "value");

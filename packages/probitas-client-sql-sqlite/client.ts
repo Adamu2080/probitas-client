@@ -108,6 +108,8 @@ export interface SqliteClient extends AsyncDisposable {
  *
  * @example Using file-based database
  * ```ts
+ * import { createSqliteClient } from "@probitas/client-sql-sqlite";
+ *
  * const client = await createSqliteClient({
  *   path: "./data.db",
  * });
@@ -123,28 +125,41 @@ export interface SqliteClient extends AsyncDisposable {
  *
  * @example Using in-memory database
  * ```ts
+ * import { createSqliteClient } from "@probitas/client-sql-sqlite";
+ *
  * const client = await createSqliteClient({
  *   path: ":memory:",
  * });
+ * await client.close();
  * ```
  *
  * @example Transaction with auto-commit/rollback
  * ```ts
- * const user = await client.transaction(async (tx) => {
+ * import { createSqliteClient } from "@probitas/client-sql-sqlite";
+ * import type { SqlTransaction } from "@probitas/client-sql";
+ *
+ * const client = await createSqliteClient({ path: ":memory:" });
+ * const user = await client.transaction(async (tx: SqlTransaction) => {
  *   await tx.query("INSERT INTO users (name) VALUES (?)", ["Alice"]);
  *   const result = await tx.query("SELECT last_insert_rowid() as id");
  *   return result.rows.first();
  * });
+ * await client.close();
  * ```
  *
  * @example Database backup
  * ```ts
- * // Create a backup of the database
+ * import { createSqliteClient } from "@probitas/client-sql-sqlite";
+ *
+ * const client = await createSqliteClient({ path: "./data.db" });
  * await client.backup("./backup.db");
+ * await client.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createSqliteClient } from "@probitas/client-sql-sqlite";
+ *
  * await using client = await createSqliteClient({ path: "./data.db" });
  *
  * const result = await client.query("SELECT 1");

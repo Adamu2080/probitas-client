@@ -445,6 +445,8 @@ class GraphqlClientImpl implements GraphqlClient {
  *
  * @example Basic query
  * ```ts
+ * import { createGraphqlClient } from "@probitas/client-graphql";
+ *
  * const client = createGraphqlClient({
  *   url: "http://localhost:4000/graphql",
  * });
@@ -461,13 +463,20 @@ class GraphqlClientImpl implements GraphqlClient {
  *
  * @example Using connection config object
  * ```ts
+ * import { createGraphqlClient } from "@probitas/client-graphql";
+ *
  * const client = createGraphqlClient({
  *   url: { host: "api.example.com", port: 443, protocol: "https" },
  * });
+ * await client.close();
  * ```
  *
  * @example Mutation with error handling
  * ```ts
+ * import { createGraphqlClient } from "@probitas/client-graphql";
+ *
+ * const client = createGraphqlClient({ url: "http://localhost:4000/graphql" });
+ *
  * const response = await client.mutation(`
  *   mutation CreateUser($input: CreateUserInput!) {
  *     createUser(input: $input) { id }
@@ -477,10 +486,14 @@ class GraphqlClientImpl implements GraphqlClient {
  * if (response.ok) {
  *   console.log("Created user:", response.data().createUser.id);
  * }
+ *
+ * await client.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createGraphqlClient } from "@probitas/client-graphql";
+ *
  * await using client = createGraphqlClient({
  *   url: "http://localhost:4000/graphql",
  * });

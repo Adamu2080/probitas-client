@@ -36,15 +36,15 @@
  * const queueUrl = queueResult.queueUrl;
  *
  * // Send a message
- * const sendResult = await client.send(queueUrl, "Hello, World!", {
- *   attributes: {
+ * const sendResult = await client.send("Hello, World!", {
+ *   messageAttributes: {
  *     type: { dataType: "String", stringValue: "greeting" },
  *   },
  * });
  * console.log("Message ID:", sendResult.messageId);
  *
  * // Receive messages
- * const receiveResult = await client.receive(queueUrl, {
+ * const receiveResult = await client.receive({
  *   maxMessages: 10,
  *   waitTimeSeconds: 5,
  * });
@@ -52,7 +52,7 @@
  *
  * // Delete message after processing
  * for (const msg of receiveResult.messages) {
- *   await client.delete(queueUrl, msg.receiptHandle);
+ *   await client.delete(msg.receiptHandle);
  * }
  *
  * await client.close();
@@ -61,30 +61,45 @@
  * ## Batch Operations
  *
  * ```ts
+ * import { createSqsClient } from "@probitas/client-sqs";
+ *
+ * const client = await createSqsClient({
+ *   region: "us-east-1",
+ *   url: "http://localhost:4566",
+ *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
+ * });
+ *
+ * const queueResult = await client.ensureQueue("test-queue");
+ * const queueUrl = queueResult.queueUrl;
+ *
  * // Send batch messages
- * await client.sendBatch(queueUrl, [
+ * await client.sendBatch([
  *   { body: "Message 1", id: "msg-1" },
  *   { body: "Message 2", id: "msg-2" },
  *   { body: "Message 3", id: "msg-3" },
  * ]);
  *
  * // Delete batch messages
- * const messages = await client.receive(queueUrl, { maxMessages: 10 });
- * await client.deleteBatch(
- *   queueUrl,
- *   messages.messages.map((m, i) => ({ id: `del-${i}`, receiptHandle: m.receiptHandle }))
- * );
+ * const messages = await client.receive({ maxMessages: 10 });
+ * const handles = messages.messages.map((m: { receiptHandle: string }) => m.receiptHandle);
+ * await client.deleteBatch(handles);
+ *
+ * await client.close();
  * ```
  *
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createSqsClient } from "@probitas/client-sqs";
+ *
  * await using client = await createSqsClient({
  *   region: "us-east-1",
  *   url: "http://localhost:4566",
+ *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
  * });
  *
  * const queue = await client.ensureQueue("test");
+ * console.log("Queue URL:", queue.queueUrl);
  * // Client automatically closed when block exits
  * ```
  *

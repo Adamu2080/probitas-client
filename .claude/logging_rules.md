@@ -15,8 +15,36 @@ Exception: When context would be lost (e.g., in deeply nested async operations),
 use `debug` level to preserve diagnostic information.
 
 ```ts
+import { getLogger } from "@probitas/logger";
+
+interface Data {
+  value: string;
+}
+
+interface Result {
+  success: boolean;
+}
+
+interface Worker {
+  process(data: Data): Promise<Result>;
+}
+
+const logger = getLogger("example");
+const worker: Worker = {
+  async process(data: Data): Promise<Result> {
+    console.log(data);
+    return { success: true };
+  },
+};
+const workerId = "worker-1";
+
+function doWork(data: Data): Result {
+  console.log(data);
+  return { success: true };
+}
+
 // Bad - Redundant logging
-function process(data: Data): Result {
+function processBad(data: Data): Result {
   try {
     return doWork(data);
   } catch (error) {
@@ -91,13 +119,29 @@ diagnostics.
 ```ts
 import { getLogger } from "@probitas/logger";
 
-const logger = getLogger(["probitas", "runner"]);
+const logger = getLogger("probitas:runner");
+
+const buffer = new Uint8Array([1, 2, 3]);
+const stepName = "login";
+const attempt = 2;
+const backoff = 1000;
+const state = "pending";
+const expected = "running";
+const details = { reason: "invariant violation" };
 
 // Developer-facing: Package internals
 logger.trace("Raw request bytes", { bytes: buffer });
 logger.debug("Step retry triggered", { stepName, attempt, backoff });
 logger.error("Unexpected state in runner", { state, expected });
 logger.fatal("Runner crashed due to invalid invariant", { details });
+
+const method = "GET";
+const url = "http://example.com";
+const headers = { "content-type": "application/json" };
+const rawBody = '{"key":"value"}';
+const status = 200;
+const api = "oldMethod";
+const suggestion = "Use newMethod instead";
 
 // End-user-facing: Scenario execution (external system interactions)
 logger.info("HTTP request", { method, url, headers, body: rawBody });

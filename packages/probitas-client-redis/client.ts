@@ -132,6 +132,8 @@ async function withOptions<T>(
  *
  * @example Using URL string
  * ```ts
+ * import { createRedisClient } from "@probitas/client-redis";
+ *
  * const client = await createRedisClient({
  *   url: "redis://localhost:6379/0",
  * });
@@ -145,6 +147,8 @@ async function withOptions<T>(
  *
  * @example Using connection config object
  * ```ts
+ * import { createRedisClient } from "@probitas/client-redis";
+ *
  * const client = await createRedisClient({
  *   url: {
  *     host: "localhost",
@@ -153,39 +157,62 @@ async function withOptions<T>(
  *     db: 0,
  *   },
  * });
+ * await client.close();
  * ```
  *
  * @example Set with expiration
  * ```ts
+ * import { createRedisClient } from "@probitas/client-redis";
+ *
+ * const client = await createRedisClient({ url: "redis://localhost:6379" });
+ * const sessionData = JSON.stringify({ userId: "123" });
+ * const data = "temporary value";
+ *
  * // Set key with 1 hour TTL
  * await client.set("session", sessionData, { ex: 3600 });
  *
  * // Set key with 5 second TTL in milliseconds
  * await client.set("temp", data, { px: 5000 });
+ *
+ * await client.close();
  * ```
  *
  * @example Hash operations
  * ```ts
+ * import { createRedisClient } from "@probitas/client-redis";
+ *
+ * const client = await createRedisClient({ url: "redis://localhost:6379" });
+ *
  * await client.hset("user:123", "name", "Alice");
  * await client.hset("user:123", "email", "alice@example.com");
  *
  * const user = await client.hgetall("user:123");
  * console.log(user.value);  // { name: "Alice", email: "alice@example.com" }
+ *
+ * await client.close();
  * ```
  *
  * @example Pub/Sub
  * ```ts
- * // Subscribe to channel
- * for await (const message of client.subscribe("events")) {
- *   console.log("Received:", message.message);
- * }
+ * import { createRedisClient } from "@probitas/client-redis";
  *
- * // In another session
+ * const client = await createRedisClient({ url: "redis://localhost:6379" });
+ *
+ * // Subscribe to channel (this would run indefinitely in practice)
+ * // for await (const message of client.subscribe("events")) {
+ * //   console.log("Received:", message.message);
+ * // }
+ *
+ * // Publish to channel
  * await client.publish("events", JSON.stringify({ type: "user.created" }));
+ *
+ * await client.close();
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
+ * import { createRedisClient } from "@probitas/client-redis";
+ *
  * await using client = await createRedisClient({
  *   url: "redis://localhost:6379",
  * });

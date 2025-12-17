@@ -66,13 +66,18 @@ export interface ConnectRpcClientConfig extends CommonOptions {
    *
    * Can be a URL string or a connection configuration object.
    *
-   * @example
+   * @example String URL
    * ```ts
-   * // String URL
-   * { url: "http://localhost:50051" }
+   * import type { ConnectRpcClientConfig } from "@probitas/client-connectrpc";
+   * const config: ConnectRpcClientConfig = { url: "http://localhost:50051" };
+   * ```
    *
-   * // Connection config object
-   * { url: { host: "grpc.example.com", port: 443, protocol: "https" } }
+   * @example Connection config object
+   * ```ts
+   * import type { ConnectRpcClientConfig } from "@probitas/client-connectrpc";
+   * const config: ConnectRpcClientConfig = {
+   *   url: { host: "grpc.example.com", port: 443, protocol: "https" },
+   * };
    * ```
    */
   readonly url: string | ConnectRpcConnectionConfig;

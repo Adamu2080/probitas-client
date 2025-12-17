@@ -52,16 +52,23 @@
  * ## Transactions
  *
  * ```ts
- * await client.transaction(async (tx) => {
+ * import { createMySqlClient } from "@probitas/client-sql-mysql";
+ * import type { SqlTransaction } from "@probitas/client-sql";
+ *
+ * const client = await createMySqlClient({ url: "mysql://localhost:3306/testdb" });
+ * await client.transaction(async (tx: SqlTransaction) => {
  *   await tx.query("INSERT INTO accounts (id, balance) VALUES (?, ?)", [1, 100]);
  *   await tx.query("INSERT INTO accounts (id, balance) VALUES (?, ?)", [2, 200]);
  *   // Automatically committed if no error, rolled back on exception
  * }, { isolationLevel: "serializable" });
+ * await client.close();
  * ```
  *
  * ## Using with `using` Statement
  *
  * ```ts
+ * import { createMySqlClient } from "@probitas/client-sql-mysql";
+ *
  * await using client = await createMySqlClient({
  *   url: { host: "localhost", username: "root", database: "testdb" },
  * });

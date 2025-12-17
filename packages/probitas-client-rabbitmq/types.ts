@@ -76,16 +76,26 @@ export interface RabbitMqClientConfig extends CommonOptions {
   /**
    * RabbitMQ connection URL or configuration object.
    *
-   * @example
+   * @example String URL
    * ```ts
-   * // String URL
-   * { url: "amqp://localhost:5672" }
+   * import type { RabbitMqClientConfig } from "@probitas/client-rabbitmq";
+   * const config: RabbitMqClientConfig = { url: "amqp://localhost:5672" };
+   * ```
    *
-   * // With credentials
-   * { url: "amqp://guest:guest@localhost:5672/%2F" }
+   * @example With credentials
+   * ```ts
+   * import type { RabbitMqClientConfig } from "@probitas/client-rabbitmq";
+   * const config: RabbitMqClientConfig = {
+   *   url: "amqp://guest:guest@localhost:5672/%2F",
+   * };
+   * ```
    *
-   * // Config object
-   * { url: { port: 5672, username: "guest", password: "guest", vhost: "/" } }
+   * @example Config object
+   * ```ts
+   * import type { RabbitMqClientConfig } from "@probitas/client-rabbitmq";
+   * const config: RabbitMqClientConfig = {
+   *   url: { port: 5672, username: "guest", password: "guest", vhost: "/" },
+   * };
    * ```
    */
   readonly url: string | RabbitMqConnectionConfig;
