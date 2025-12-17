@@ -1,3 +1,95 @@
+### 2025.12.17
+
+#### @probitas/client 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-connectrpc 0.4.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-deno-kv 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-graphql 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-grpc 0.4.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-http 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-mongodb 0.4.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-rabbitmq 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-redis 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-sql 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-sql-duckdb 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-sql-mysql 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-sql-postgres 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-sql-sqlite 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
+#### @probitas/client-sqs 0.3.1 (patch)
+
+- fix(*): align logging levels with logging_rules.md conventions
+- docs(*): add JSDoc type checking with deno check --doc
+- docs(*): migrate CLAUDE.md to .claude/ directory structure
+
 ### 2025.12.12
 
 #### @probitas/client 0.3.0 (minor)
