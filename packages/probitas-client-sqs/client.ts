@@ -13,19 +13,22 @@ import {
 } from "@aws-sdk/client-sqs";
 import { AbortError, TimeoutError } from "@probitas/client";
 import { getLogger } from "@probitas/logger";
-import type { CommonOptions } from "@probitas/client";
 import type {
   SqsBatchMessage,
+  SqsBatchOptions,
   SqsClient,
   SqsClientConfig,
   SqsConnectionConfig,
   SqsDeleteBatchResult,
+  SqsDeleteOptions,
+  SqsDeleteQueueOptions,
   SqsDeleteQueueResult,
   SqsDeleteResult,
   SqsEnsureQueueOptions,
   SqsEnsureQueueResult,
   SqsMessage,
   SqsMessageAttribute,
+  SqsOptions,
   SqsReceiveOptions,
   SqsReceiveResult,
   SqsSendBatchResult,
@@ -35,11 +38,34 @@ import type {
 import {
   SqsCommandError,
   SqsConnectionError,
+  SqsError,
   SqsMessageNotFoundError,
   SqsMessageTooLargeError,
   SqsQueueNotFoundError,
 } from "./errors.ts";
-import { createSqsMessages } from "./messages.ts";
+import {
+  createSqsDeleteBatchResultError,
+  createSqsDeleteBatchResultFailure,
+  createSqsDeleteBatchResultSuccess,
+  createSqsDeleteQueueResultError,
+  createSqsDeleteQueueResultFailure,
+  createSqsDeleteQueueResultSuccess,
+  createSqsDeleteResultError,
+  createSqsDeleteResultFailure,
+  createSqsDeleteResultSuccess,
+  createSqsEnsureQueueResultError,
+  createSqsEnsureQueueResultFailure,
+  createSqsEnsureQueueResultSuccess,
+  createSqsReceiveResultError,
+  createSqsReceiveResultFailure,
+  createSqsReceiveResultSuccess,
+  createSqsSendBatchResultError,
+  createSqsSendBatchResultFailure,
+  createSqsSendBatchResultSuccess,
+  createSqsSendResultError,
+  createSqsSendResultFailure,
+  createSqsSendResultSuccess,
+} from "./result.ts";
 
 const MAX_MESSAGE_SIZE = 256 * 1024; // 256 KB
 
@@ -66,7 +92,7 @@ function formatValue(value: unknown): string {
  */
 async function withOptions<T>(
   promise: Promise<T>,
-  options: CommonOptions | undefined,
+  options: SqsOptions | undefined,
   operation: string,
 ): Promise<T> {
   if (!options?.timeout && !options?.signal) {
@@ -119,15 +145,63 @@ async function withOptions<T>(
 }
 
 /**
+ * Check if an error is a connection error.
+ */
+function isConnectionError(error: unknown): boolean {
+  if (error instanceof TypeError) {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes("network") ||
+      message.includes("connection") ||
+      message.includes("fetch") ||
+      message.includes("dns") ||
+      message.includes("timeout") ||
+      message.includes("econnrefused") ||
+      message.includes("enotfound")
+    );
+  }
+  if (error instanceof Error) {
+    const name = error.name.toLowerCase();
+    if (
+      name.includes("network") ||
+      name.includes("connection")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Check if an error should be treated as a failure (unprocessed).
+ * AbortError, TimeoutError, and SqsConnectionError are failures.
+ */
+function isFailureError(
+  error: unknown,
+): error is AbortError | TimeoutError | SqsConnectionError {
+  return (
+    error instanceof AbortError ||
+    error instanceof TimeoutError ||
+    error instanceof SqsConnectionError
+  );
+}
+
+/**
  * Convert AWS SDK errors to SQS-specific errors.
+ * Note: AbortError and TimeoutError are not converted - they are returned as-is.
  */
 function convertSqsError(
   error: unknown,
   operation: string,
   context?: { queueUrl?: string },
-): never {
-  if (error instanceof TimeoutError || error instanceof AbortError) {
-    throw error;
+): SqsError | AbortError | TimeoutError {
+  if (error instanceof SqsError) {
+    return error;
+  }
+
+  // AbortError and TimeoutError should not be converted
+  if (error instanceof AbortError || error instanceof TimeoutError) {
+    return error;
   }
 
   if (error instanceof Error) {
@@ -140,7 +214,7 @@ function convertSqsError(
       message.includes("does not exist") ||
       message.includes("NonExistentQueue")
     ) {
-      throw new SqsQueueNotFoundError(
+      return new SqsQueueNotFoundError(
         message,
         context?.queueUrl ?? "unknown",
         { cause: error },
@@ -152,16 +226,20 @@ function convertSqsError(
       message.includes("ReceiptHandleIsInvalid") ||
       message.includes("receipt handle")
     ) {
-      throw new SqsMessageNotFoundError(message, { cause: error });
+      return new SqsMessageNotFoundError(message, { cause: error });
     }
 
-    throw new SqsCommandError(message, {
+    if (isConnectionError(error)) {
+      return new SqsConnectionError(message, { cause: error });
+    }
+
+    return new SqsCommandError(message, {
       operation,
       cause: error,
     });
   }
 
-  throw new SqsCommandError(String(error), { operation });
+  return new SqsCommandError(String(error), { operation });
 }
 
 /**
@@ -203,17 +281,18 @@ function toSdkMessageAttributes(
 }
 
 /**
- * Validate message size.
+ * Validate message size and return error if too large.
  */
-function validateMessageSize(body: string): void {
+function validateMessageSize(body: string): SqsMessageTooLargeError | null {
   const size = new TextEncoder().encode(body).length;
   if (size > MAX_MESSAGE_SIZE) {
-    throw new SqsMessageTooLargeError(
+    return new SqsMessageTooLargeError(
       `Message size ${size} exceeds maximum allowed size ${MAX_MESSAGE_SIZE}`,
       size,
       MAX_MESSAGE_SIZE,
     );
   }
+  return null;
 }
 
 /**
@@ -248,135 +327,139 @@ function resolveEndpointUrl(
  * ```ts
  * import { createSqsClient } from "@probitas/client-sqs";
  *
- * const sqs = await createSqsClient({
- *   region: "ap-northeast-1",
- *   queueUrl: "https://sqs.ap-northeast-1.amazonaws.com/123456789/my-queue",
- *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
- * });
+ * async function example() {
+ *   const sqs = await createSqsClient({
+ *     region: "ap-northeast-1",
+ *     queueUrl: "https://sqs.ap-northeast-1.amazonaws.com/123456789/my-queue",
+ *     credentials: { accessKeyId: "test", secretAccessKey: "test" },
+ *   });
  *
- * // Send a message
- * const sendResult = await sqs.send(JSON.stringify({
- *   type: "ORDER",
- *   orderId: "123",
- * }));
- * console.log("Message ID:", sendResult.messageId);
+ *   // Send a message
+ *   const sendResult = await sqs.send(JSON.stringify({
+ *     type: "ORDER",
+ *     orderId: "123",
+ *   }));
  *
- * await sqs.close();
+ *   if (sendResult.ok) {
+ *     console.log("Message ID:", sendResult.messageId);
+ *   } else {
+ *     console.error("Error:", sendResult.error.message);
+ *   }
+ *
+ *   await sqs.close();
+ * }
  * ```
  *
  * @example Using LocalStack for local development
  * ```ts
  * import { createSqsClient } from "@probitas/client-sqs";
  *
- * const sqs = await createSqsClient({
- *   region: "us-east-1",
- *   url: "http://localhost:4566",
- *   credentials: {
- *     accessKeyId: "test",
- *     secretAccessKey: "test",
- *   },
- * });
+ * async function example() {
+ *   const sqs = await createSqsClient({
+ *     region: "us-east-1",
+ *     url: "http://localhost:4566",
+ *     credentials: {
+ *       accessKeyId: "test",
+ *       secretAccessKey: "test",
+ *     },
+ *   });
  *
- * // Create queue dynamically (also sets queueUrl)
- * const result = await sqs.ensureQueue("test-queue");
- * console.log(result.queueUrl);  // http://localhost:4566/000000000000/test-queue
+ *   // Create queue dynamically (also sets queueUrl)
+ *   const result = await sqs.ensureQueue("test-queue");
+ *   if (result.ok) {
+ *     console.log(result.queueUrl);  // http://localhost:4566/000000000000/test-queue
+ *   }
  *
- * await sqs.close();
+ *   await sqs.close();
+ * }
  * ```
  *
  * @example Receiving messages with long polling
  * ```ts
  * import { createSqsClient } from "@probitas/client-sqs";
  *
- * const sqs = await createSqsClient({
- *   region: "us-east-1",
- *   url: "http://localhost:4566",
- *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
- * });
- * await sqs.ensureQueue("test-queue");
+ * async function example() {
+ *   const sqs = await createSqsClient({
+ *     region: "us-east-1",
+ *     url: "http://localhost:4566",
+ *     credentials: { accessKeyId: "test", secretAccessKey: "test" },
+ *   });
+ *   await sqs.ensureQueue("test-queue");
  *
- * // Long polling waits up to 20 seconds for messages
- * const receiveResult = await sqs.receive({
- *   maxMessages: 10,
- *   waitTimeSeconds: 20,
- *   visibilityTimeout: 30,
- * });
+ *   // Long polling waits up to 20 seconds for messages
+ *   const receiveResult = await sqs.receive({
+ *     maxMessages: 10,
+ *     waitTimeSeconds: 20,
+ *     visibilityTimeout: 30,
+ *   });
  *
- * console.log("Received:", receiveResult.messages.length);
+ *   if (receiveResult.ok) {
+ *     console.log("Received:", receiveResult.messages.length);
  *
- * // Process and acknowledge messages
- * for (const msg of receiveResult.messages) {
- *   const data = JSON.parse(msg.body);
- *   console.log("Processing:", data);
+ *     // Process and acknowledge messages
+ *     for (const msg of receiveResult.messages) {
+ *       const data = JSON.parse(msg.body);
+ *       console.log("Processing:", data);
  *
- *   // Delete after successful processing
- *   await sqs.delete(msg.receiptHandle);
+ *       // Delete after successful processing
+ *       await sqs.delete(msg.receiptHandle);
+ *     }
+ *   }
+ *
+ *   await sqs.close();
  * }
- *
- * await sqs.close();
  * ```
  *
  * @example Batch operations for high throughput
  * ```ts
  * import { createSqsClient } from "@probitas/client-sqs";
  *
- * const sqs = await createSqsClient({
- *   region: "us-east-1",
- *   url: "http://localhost:4566",
- *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
- * });
- * await sqs.ensureQueue("test-queue");
+ * async function example() {
+ *   const sqs = await createSqsClient({
+ *     region: "us-east-1",
+ *     url: "http://localhost:4566",
+ *     credentials: { accessKeyId: "test", secretAccessKey: "test" },
+ *   });
+ *   await sqs.ensureQueue("test-queue");
  *
- * // Send multiple messages in a single API call
- * const batchResult = await sqs.sendBatch([
- *   { id: "1", body: JSON.stringify({ event: "user.created", userId: "a1" }) },
- *   { id: "2", body: JSON.stringify({ event: "user.created", userId: "a2" }) },
- *   { id: "3", body: JSON.stringify({ event: "user.updated", userId: "a3" }) },
- * ]);
+ *   // Send multiple messages in a single API call
+ *   const batchResult = await sqs.sendBatch([
+ *     { id: "1", body: JSON.stringify({ event: "user.created", userId: "a1" }) },
+ *     { id: "2", body: JSON.stringify({ event: "user.created", userId: "a2" }) },
+ *     { id: "3", body: JSON.stringify({ event: "user.updated", userId: "a3" }) },
+ *   ]);
  *
- * console.log(`Sent: ${batchResult.successful.length}`);
- * console.log(`Failed: ${batchResult.failed.length}`);
+ *   if (batchResult.ok) {
+ *     console.log(`Sent: ${batchResult.successful.length}`);
+ *     console.log(`Failed: ${batchResult.failed.length}`);
+ *   }
  *
- * // Batch delete processed messages
- * const receiveResult = await sqs.receive({ maxMessages: 10 });
- * const handles = receiveResult.messages.map((m: { receiptHandle: string }) => m.receiptHandle);
- * await sqs.deleteBatch(handles);
+ *   // Batch delete processed messages
+ *   const receiveResult = await sqs.receive({ maxMessages: 10 });
+ *   if (receiveResult.ok) {
+ *     const handles = receiveResult.messages.map((m) => m.receiptHandle);
+ *     await sqs.deleteBatch(handles);
+ *   }
  *
- * await sqs.close();
- * ```
- *
- * @example FIFO queue with deduplication
- * ```ts
- * import { createSqsClient } from "@probitas/client-sqs";
- *
- * const sqs = await createSqsClient({
- *   region: "ap-northeast-1",
- *   queueUrl: "https://sqs.ap-northeast-1.amazonaws.com/123456789/orders.fifo",
- *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
- * });
- *
- * // FIFO queues require MessageGroupId and optionally MessageDeduplicationId
- * await sqs.send(JSON.stringify({ orderId: "order-123" }), {
- *   messageGroupId: "orders",
- *   messageDeduplicationId: "order-123-v1",
- * });
- *
- * await sqs.close();
+ *   await sqs.close();
+ * }
  * ```
  *
  * @example Using `await using` for automatic cleanup
  * ```ts
  * import { createSqsClient } from "@probitas/client-sqs";
  *
- * await using sqs = await createSqsClient({
- *   region: "us-east-1",
- *   url: "http://localhost:4566",
- *   credentials: { accessKeyId: "test", secretAccessKey: "test" },
- * });
+ * async function example() {
+ *   await using sqs = await createSqsClient({
+ *     region: "us-east-1",
+ *     url: "http://localhost:4566",
+ *     credentials: { accessKeyId: "test", secretAccessKey: "test" },
+ *   });
  *
- * await sqs.ensureQueue("test-queue");
- * await sqs.send("Hello, SQS!");
- * // Client automatically closed when scope exits
+ *   await sqs.ensureQueue("test-queue");
+ *   await sqs.send("Hello, SQS!");
+ *   // Client automatically closed when scope exits
+ * }
  * ```
  */
 export function createSqsClient(
@@ -430,16 +513,59 @@ class SqsClientImpl implements SqsClient {
     logger.debug("SQS queue URL set", { queueUrl });
   }
 
+  #shouldThrow(options?: SqsOptions): boolean {
+    return options?.throwOnError ?? this.config.throwOnError ?? false;
+  }
+
+  #checkClosed(
+    operation: string,
+  ): SqsCommandError | null {
+    if (this.#closed) {
+      return new SqsCommandError("Client is closed", { operation });
+    }
+    return null;
+  }
+
+  #checkQueueUrl(operation: string): SqsCommandError | null {
+    if (!this.#queueUrl) {
+      return new SqsCommandError(
+        "Queue URL is required for this operation. Use setQueueUrl() or ensureQueue() first.",
+        { operation },
+      );
+    }
+    return null;
+  }
+
   async send(
     body: string,
     options?: SqsSendOptions,
   ): Promise<SqsSendResult> {
-    this.#ensureOpen();
-    const queueUrl = this.#requireQueueUrl();
-    validateMessageSize(body);
-
     const startTime = performance.now();
     const operation = "send";
+
+    // Check preconditions
+    const closedError = this.#checkClosed(operation);
+    if (closedError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw closedError;
+      return createSqsSendResultError({ error: closedError, duration });
+    }
+
+    const queueUrlError = this.#checkQueueUrl(operation);
+    if (queueUrlError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw queueUrlError;
+      return createSqsSendResultError({ error: queueUrlError, duration });
+    }
+
+    const sizeError = validateMessageSize(body);
+    if (sizeError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw sizeError;
+      return createSqsSendResultError({ error: sizeError, duration });
+    }
+
+    const queueUrl = this.#queueUrl!;
 
     // Log request start
     logger.info("SQS send message starting", {
@@ -484,16 +610,12 @@ class SqsClientImpl implements SqsClient {
         body: formatValue(body),
       });
 
-      return {
-        kind: "sqs:send",
-        processed: true as const,
-        ok: true,
-        error: null,
+      return createSqsSendResultSuccess({
         messageId: response.MessageId!,
         md5OfBody: response.MD5OfMessageBody!,
-        sequenceNumber: response.SequenceNumber,
+        sequenceNumber: response.SequenceNumber ?? null,
         duration,
-      };
+      });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.debug("SQS send message failed", {
@@ -501,22 +623,50 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertSqsError(error, operation, { queueUrl });
+
+      const sqsError = convertSqsError(error, operation, { queueUrl });
+      if (this.#shouldThrow(options)) throw sqsError;
+
+      if (isFailureError(sqsError)) {
+        return createSqsSendResultFailure({ error: sqsError, duration });
+      }
+      return createSqsSendResultError({ error: sqsError, duration });
     }
   }
 
   async sendBatch(
     messages: SqsBatchMessage[],
+    options?: SqsBatchOptions,
   ): Promise<SqsSendBatchResult> {
-    this.#ensureOpen();
-    const queueUrl = this.#requireQueueUrl();
-
-    for (const msg of messages) {
-      validateMessageSize(msg.body);
-    }
-
     const startTime = performance.now();
     const operation = "sendBatch";
+
+    // Check preconditions
+    const closedError = this.#checkClosed(operation);
+    if (closedError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw closedError;
+      return createSqsSendBatchResultError({ error: closedError, duration });
+    }
+
+    const queueUrlError = this.#checkQueueUrl(operation);
+    if (queueUrlError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw queueUrlError;
+      return createSqsSendBatchResultError({ error: queueUrlError, duration });
+    }
+
+    // Validate message sizes
+    for (const msg of messages) {
+      const sizeError = validateMessageSize(msg.body);
+      if (sizeError) {
+        const duration = performance.now() - startTime;
+        if (this.#shouldThrow(options)) throw sizeError;
+        return createSqsSendBatchResultError({ error: sizeError, duration });
+      }
+    }
+
+    const queueUrl = this.#queueUrl!;
 
     // Log batch send start
     logger.info("SQS send batch messages starting", {
@@ -541,7 +691,7 @@ class SqsClientImpl implements SqsClient {
 
       const response = await withOptions(
         this.#client.send(command),
-        undefined,
+        options,
         operation,
       );
 
@@ -573,15 +723,11 @@ class SqsClientImpl implements SqsClient {
         })),
       });
 
-      return {
-        kind: "sqs:send-batch",
-        processed: true as const,
-        ok: failed.length === 0,
-        error: null,
+      return createSqsSendBatchResultSuccess({
         successful,
         failed,
         duration,
-      };
+      });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.debug("SQS send batch messages failed", {
@@ -590,17 +736,39 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertSqsError(error, operation, { queueUrl });
+
+      const sqsError = convertSqsError(error, operation, { queueUrl });
+      if (this.#shouldThrow(options)) throw sqsError;
+
+      if (isFailureError(sqsError)) {
+        return createSqsSendBatchResultFailure({ error: sqsError, duration });
+      }
+      return createSqsSendBatchResultError({ error: sqsError, duration });
     }
   }
 
   async receive(
     options?: SqsReceiveOptions,
   ): Promise<SqsReceiveResult> {
-    this.#ensureOpen();
-    const queueUrl = this.#requireQueueUrl();
     const startTime = performance.now();
     const operation = "receive";
+
+    // Check preconditions
+    const closedError = this.#checkClosed(operation);
+    if (closedError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw closedError;
+      return createSqsReceiveResultError({ error: closedError, duration });
+    }
+
+    const queueUrlError = this.#checkQueueUrl(operation);
+    if (queueUrlError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw queueUrlError;
+      return createSqsReceiveResultError({ error: queueUrlError, duration });
+    }
+
+    const queueUrl = this.#queueUrl!;
 
     // Log receive start
     logger.info("SQS receive messages starting", {
@@ -659,14 +827,10 @@ class SqsClientImpl implements SqsClient {
         })),
       });
 
-      return {
-        kind: "sqs:receive",
-        processed: true as const,
-        ok: true,
-        error: null,
-        messages: createSqsMessages(messages),
+      return createSqsReceiveResultSuccess({
+        messages,
         duration,
-      };
+      });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.debug("SQS receive messages failed", {
@@ -674,18 +838,40 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertSqsError(error, operation, { queueUrl });
+
+      const sqsError = convertSqsError(error, operation, { queueUrl });
+      if (this.#shouldThrow(options)) throw sqsError;
+
+      if (isFailureError(sqsError)) {
+        return createSqsReceiveResultFailure({ error: sqsError, duration });
+      }
+      return createSqsReceiveResultError({ error: sqsError, duration });
     }
   }
 
   async delete(
     receiptHandle: string,
-    options?: CommonOptions,
+    options?: SqsDeleteOptions,
   ): Promise<SqsDeleteResult> {
-    this.#ensureOpen();
-    const queueUrl = this.#requireQueueUrl();
     const startTime = performance.now();
     const operation = "delete";
+
+    // Check preconditions
+    const closedError = this.#checkClosed(operation);
+    if (closedError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw closedError;
+      return createSqsDeleteResultError({ error: closedError, duration });
+    }
+
+    const queueUrlError = this.#checkQueueUrl(operation);
+    if (queueUrlError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw queueUrlError;
+      return createSqsDeleteResultError({ error: queueUrlError, duration });
+    }
+
+    const queueUrl = this.#queueUrl!;
 
     // Log delete start
     logger.info("SQS delete message starting", {
@@ -711,13 +897,7 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      return {
-        kind: "sqs:delete",
-        processed: true as const,
-        ok: true,
-        error: null,
-        duration,
-      };
+      return createSqsDeleteResultSuccess({ duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.debug("SQS delete message failed", {
@@ -725,18 +905,43 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertSqsError(error, operation, { queueUrl });
+
+      const sqsError = convertSqsError(error, operation, { queueUrl });
+      if (this.#shouldThrow(options)) throw sqsError;
+
+      if (isFailureError(sqsError)) {
+        return createSqsDeleteResultFailure({ error: sqsError, duration });
+      }
+      return createSqsDeleteResultError({ error: sqsError, duration });
     }
   }
 
   async deleteBatch(
     receiptHandles: string[],
-    options?: CommonOptions,
+    options?: SqsBatchOptions,
   ): Promise<SqsDeleteBatchResult> {
-    this.#ensureOpen();
-    const queueUrl = this.#requireQueueUrl();
     const startTime = performance.now();
     const operation = "deleteBatch";
+
+    // Check preconditions
+    const closedError = this.#checkClosed(operation);
+    if (closedError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw closedError;
+      return createSqsDeleteBatchResultError({ error: closedError, duration });
+    }
+
+    const queueUrlError = this.#checkQueueUrl(operation);
+    if (queueUrlError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw queueUrlError;
+      return createSqsDeleteBatchResultError({
+        error: queueUrlError,
+        duration,
+      });
+    }
+
+    const queueUrl = this.#queueUrl!;
 
     // Log batch delete start
     logger.info("SQS delete batch messages starting", {
@@ -776,15 +981,11 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      return {
-        kind: "sqs:delete-batch",
-        processed: true as const,
-        ok: failed.length === 0,
-        error: null,
+      return createSqsDeleteBatchResultSuccess({
         successful,
         failed,
         duration,
-      };
+      });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.debug("SQS delete batch messages failed", {
@@ -793,15 +994,37 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertSqsError(error, operation, { queueUrl });
+
+      const sqsError = convertSqsError(error, operation, { queueUrl });
+      if (this.#shouldThrow(options)) throw sqsError;
+
+      if (isFailureError(sqsError)) {
+        return createSqsDeleteBatchResultFailure({ error: sqsError, duration });
+      }
+      return createSqsDeleteBatchResultError({ error: sqsError, duration });
     }
   }
 
-  async purge(options?: CommonOptions): Promise<SqsDeleteResult> {
-    this.#ensureOpen();
-    const queueUrl = this.#requireQueueUrl();
+  async purge(options?: SqsOptions): Promise<SqsDeleteResult> {
     const startTime = performance.now();
     const operation = "purge";
+
+    // Check preconditions
+    const closedError = this.#checkClosed(operation);
+    if (closedError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw closedError;
+      return createSqsDeleteResultError({ error: closedError, duration });
+    }
+
+    const queueUrlError = this.#checkQueueUrl(operation);
+    if (queueUrlError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw queueUrlError;
+      return createSqsDeleteResultError({ error: queueUrlError, duration });
+    }
+
+    const queueUrl = this.#queueUrl!;
 
     // Log purge start
     logger.info("SQS purge queue starting", {
@@ -826,13 +1049,7 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      return {
-        kind: "sqs:delete",
-        processed: true as const,
-        ok: true,
-        error: null,
-        duration,
-      };
+      return createSqsDeleteResultSuccess({ duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.debug("SQS purge queue failed", {
@@ -840,7 +1057,14 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertSqsError(error, operation, { queueUrl });
+
+      const sqsError = convertSqsError(error, operation, { queueUrl });
+      if (this.#shouldThrow(options)) throw sqsError;
+
+      if (isFailureError(sqsError)) {
+        return createSqsDeleteResultFailure({ error: sqsError, duration });
+      }
+      return createSqsDeleteResultError({ error: sqsError, duration });
     }
   }
 
@@ -848,9 +1072,16 @@ class SqsClientImpl implements SqsClient {
     queueName: string,
     options?: SqsEnsureQueueOptions,
   ): Promise<SqsEnsureQueueResult> {
-    this.#ensureOpen();
     const startTime = performance.now();
     const operation = "ensureQueue";
+
+    // Check preconditions
+    const closedError = this.#checkClosed(operation);
+    if (closedError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw closedError;
+      return createSqsEnsureQueueResultError({ error: closedError, duration });
+    }
 
     // Log ensureQueue start
     logger.info("SQS ensure queue starting", {
@@ -885,14 +1116,10 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      return {
-        kind: "sqs:ensure-queue",
-        processed: true as const,
-        ok: true,
-        error: null,
+      return createSqsEnsureQueueResultSuccess({
         queueUrl,
         duration,
-      };
+      });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.debug("SQS ensure queue failed", {
@@ -900,17 +1127,31 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertSqsError(error, operation, {});
+
+      const sqsError = convertSqsError(error, operation, {});
+      if (this.#shouldThrow(options)) throw sqsError;
+
+      if (isFailureError(sqsError)) {
+        return createSqsEnsureQueueResultFailure({ error: sqsError, duration });
+      }
+      return createSqsEnsureQueueResultError({ error: sqsError, duration });
     }
   }
 
   async deleteQueue(
     queueUrl: string,
-    options?: CommonOptions,
+    options?: SqsDeleteQueueOptions,
   ): Promise<SqsDeleteQueueResult> {
-    this.#ensureOpen();
     const startTime = performance.now();
     const operation = "deleteQueue";
+
+    // Check preconditions
+    const closedError = this.#checkClosed(operation);
+    if (closedError) {
+      const duration = performance.now() - startTime;
+      if (this.#shouldThrow(options)) throw closedError;
+      return createSqsDeleteQueueResultError({ error: closedError, duration });
+    }
 
     // Log deleteQueue start
     logger.info("SQS delete queue starting", {
@@ -936,13 +1177,7 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      return {
-        kind: "sqs:delete-queue",
-        processed: true as const,
-        ok: true,
-        error: null,
-        duration,
-      };
+      return createSqsDeleteQueueResultSuccess({ duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.debug("SQS delete queue failed", {
@@ -950,7 +1185,14 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertSqsError(error, operation, { queueUrl });
+
+      const sqsError = convertSqsError(error, operation, { queueUrl });
+      if (this.#shouldThrow(options)) throw sqsError;
+
+      if (isFailureError(sqsError)) {
+        return createSqsDeleteQueueResultFailure({ error: sqsError, duration });
+      }
+      return createSqsDeleteQueueResultError({ error: sqsError, duration });
     }
   }
 
@@ -968,21 +1210,5 @@ class SqsClientImpl implements SqsClient {
 
   [Symbol.asyncDispose](): Promise<void> {
     return this.close();
-  }
-
-  #ensureOpen(): void {
-    if (this.#closed) {
-      throw new SqsCommandError("Client is closed", { operation: "" });
-    }
-  }
-
-  #requireQueueUrl(): string {
-    if (!this.#queueUrl) {
-      throw new SqsCommandError(
-        "Queue URL is required for this operation. Use setQueueUrl() or ensureQueue() first.",
-        { operation: "" },
-      );
-    }
-    return this.#queueUrl;
   }
 }
