@@ -8,7 +8,7 @@
  */
 
 import { assert, assertEquals, assertInstanceOf } from "@std/assert";
-import { createHttpClient, HttpError, HttpNotFoundError } from "./mod.ts";
+import { createHttpClient, HttpNotFoundError } from "./mod.ts";
 
 const ECHO_HTTP_URL = Deno.env.get("ECHO_HTTP_URL") ?? "http://localhost:18080";
 
@@ -126,7 +126,7 @@ Deno.test({
 
     await t.step("GET /status/404 throws HttpNotFoundError", async () => {
       try {
-        await client.get("/status/404", { throwOnError: true });
+        await client.get("/status/404");
         throw new Error("Expected HttpNotFoundError");
       } catch (error) {
         assertInstanceOf(error, HttpNotFoundError);
@@ -245,12 +245,12 @@ Deno.test({
       try {
         await client.get("/redirect/1", {
           redirect: "error",
-          throwOnError: true,
+          throwOnError: false,
         });
         throw new Error("Expected fetch to throw on redirect");
       } catch (error) {
-        // fetch throws TypeError when redirect is "error", which is wrapped in HttpError
-        assertInstanceOf(error, HttpError);
+        // fetch throws TypeError when redirect is "error" and response is redirect
+        assertInstanceOf(error, TypeError);
       }
     });
 

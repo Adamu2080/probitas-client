@@ -359,9 +359,9 @@ Deno.test({
       }
 
       // After exiting the block, the client should be closed
-      // Attempting to query should fail (throwOnError: true to actually throw)
+      // Attempting to query should fail
       await assertRejects(
-        () => clientRef!.query("SELECT 1", undefined, { throwOnError: true }),
+        () => clientRef!.query("SELECT 1"),
         Error,
         "Client is closed",
       );
