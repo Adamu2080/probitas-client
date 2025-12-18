@@ -54,9 +54,8 @@ export class GraphqlValidationError extends GraphqlError {
     errors: readonly GraphqlErrorItem[],
     options?: GraphqlErrorOptions,
   ) {
-    const message = `GraphQL validation failed: ${
-      errors.map((e) => e.message).join("; ")
-    }`;
+    const detail = formatGraphqlErrorDetail(errors);
+    const message = `GraphQL validation failed:\n\n${detail}`;
     super(message, errors, options);
   }
 }
@@ -71,9 +70,20 @@ export class GraphqlExecutionError extends GraphqlError {
     errors: readonly GraphqlErrorItem[],
     options?: GraphqlErrorOptions,
   ) {
-    const message = `GraphQL execution failed: ${
-      errors.map((e) => e.message).join("; ")
-    }`;
+    const detail = formatGraphqlErrorDetail(errors);
+    const message = `GraphQL execution failed:\n\n${detail}`;
     super(message, errors, options);
   }
+}
+
+function formatGraphqlErrorDetail(errors: readonly GraphqlErrorItem[]): string {
+  const detail = Deno.inspect(errors, {
+    compact: false,
+    sorted: true,
+    trailingComma: true,
+  });
+  return detail
+    .split("\n")
+    .map((line) => `  ${line}`)
+    .join("\n");
 }

@@ -2,10 +2,10 @@ import type {
   GraphqlClient,
   GraphqlClientConfig,
   GraphqlConnectionConfig,
-  GraphqlErrorItem,
   GraphqlOptions,
   GraphqlResponse,
 } from "./types.ts";
+import type { GraphqlErrorItem } from "./types.ts";
 import { GraphqlExecutionError, GraphqlNetworkError } from "./errors.ts";
 import { createGraphqlResponse } from "./response.ts";
 import { getLogger } from "@probitas/logger";
@@ -172,9 +172,13 @@ class GraphqlClientImpl implements GraphqlClient {
       });
     }
 
+    const error = responseBody.errors && responseBody.errors.length > 0
+      ? new GraphqlExecutionError(responseBody.errors)
+      : null;
+
     const response = createGraphqlResponse<TData>({
       data: responseBody.data ?? null,
-      errors: responseBody.errors ?? null,
+      error,
       extensions: responseBody.extensions,
       duration,
       status: rawResponse.status,
@@ -201,8 +205,8 @@ class GraphqlClientImpl implements GraphqlClient {
     const shouldThrow = options?.throwOnError ?? this.config.throwOnError ??
       true;
 
-    if (!response.ok && shouldThrow && response.errors) {
-      throw new GraphqlExecutionError(response.errors, { response });
+    if (!response.ok && shouldThrow && response.error) {
+      throw response.error;
     }
 
     return response;
@@ -320,9 +324,13 @@ class GraphqlClientImpl implements GraphqlClient {
           const startTime = performance.now();
           const payload = message.payload as GraphqlResponseBody<TData>;
 
+          const error = payload.errors && payload.errors.length > 0
+            ? new GraphqlExecutionError(payload.errors)
+            : null;
+
           const response = createGraphqlResponse<TData>({
             data: payload.data ?? null,
-            errors: payload.errors ?? null,
+            error,
             extensions: payload.extensions,
             duration: performance.now() - startTime,
             status: 200,
@@ -387,8 +395,8 @@ class GraphqlClientImpl implements GraphqlClient {
           const shouldThrow = options?.throwOnError ??
             this.config.throwOnError ?? true;
 
-          if (!response.ok && shouldThrow && response.errors) {
-            throw new GraphqlExecutionError(response.errors, { response });
+          if (!response.ok && shouldThrow && response.error) {
+            throw response.error;
           }
 
           yield response;

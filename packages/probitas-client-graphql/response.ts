@@ -1,5 +1,5 @@
 import type { ClientResult } from "@probitas/client";
-import type { GraphqlErrorItem } from "./types.ts";
+import type { GraphqlError } from "./errors.ts";
 
 /**
  * GraphQL response interface with pre-loaded body.
@@ -17,17 +17,17 @@ export interface GraphqlResponse<T = any> extends ClientResult {
   /**
    * Whether the request was successful (no errors).
    *
-   * Inherited from ClientResult. True when errors array is null or empty,
+   * Inherited from ClientResult. True when error is null,
    * false when GraphQL errors are present.
    */
   readonly ok: boolean;
 
   /**
-   * GraphQL errors array (null if no errors).
+   * GraphQL error (null if no errors).
    *
    * Contains validation, execution, or resolver errors from the GraphQL server.
    */
-  readonly errors: readonly GraphqlErrorItem[] | null;
+  readonly error: GraphqlError | null;
 
   /**
    * Response extensions.
@@ -75,7 +75,7 @@ export interface GraphqlResponse<T = any> extends ClientResult {
  */
 export interface GraphqlResponseOptions<T> {
   readonly data: T | null;
-  readonly errors: readonly GraphqlErrorItem[] | null;
+  readonly error: GraphqlError | null;
   readonly extensions?: Record<string, unknown>;
   readonly duration: number;
   readonly status: number;
@@ -88,7 +88,7 @@ export interface GraphqlResponseOptions<T> {
 class GraphqlResponseImpl<T> implements GraphqlResponse<T> {
   readonly kind = "graphql" as const;
   readonly ok: boolean;
-  readonly errors: readonly GraphqlErrorItem[] | null;
+  readonly error: GraphqlError | null;
   readonly extensions?: Record<string, unknown>;
   readonly duration: number;
   readonly status: number;
@@ -100,8 +100,8 @@ class GraphqlResponseImpl<T> implements GraphqlResponse<T> {
   constructor(options: GraphqlResponseOptions<T>) {
     this.#data = options.data;
     this.#raw = options.raw;
-    this.errors = options.errors;
-    this.ok = options.errors === null || options.errors.length === 0;
+    this.error = options.error;
+    this.ok = options.error === null;
     this.extensions = options.extensions;
     this.duration = options.duration;
     this.status = options.status;

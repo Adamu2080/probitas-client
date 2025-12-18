@@ -79,9 +79,11 @@ Deno.test("GraphqlValidationError", async (t) => {
     assertEquals(error.kind, "graphql");
     assertEquals(error.errors, errors);
     assertEquals(
-      error.message,
-      "GraphQL validation failed: Unknown field 'foo'; Cannot query field 'bar'",
+      error.message.startsWith("GraphQL validation failed:\n\n"),
+      true,
     );
+    assertEquals(error.message.includes("Unknown field 'foo'"), true);
+    assertEquals(error.message.includes("Cannot query field 'bar'"), true);
   });
 });
 
@@ -99,7 +101,11 @@ Deno.test("GraphqlExecutionError", async (t) => {
     assertEquals(error.name, "GraphqlExecutionError");
     assertEquals(error.kind, "graphql");
     assertEquals(error.errors, errors);
-    assertEquals(error.message, "GraphQL execution failed: User not found");
+    assertEquals(
+      error.message.startsWith("GraphQL execution failed:\n\n"),
+      true,
+    );
+    assertEquals(error.message.includes("User not found"), true);
   });
 
   await t.step("supports response property", () => {

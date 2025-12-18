@@ -1,11 +1,12 @@
 import { assertEquals, assertInstanceOf } from "@std/assert";
 import { createGraphqlResponse } from "./response.ts";
+import { GraphqlExecutionError } from "./errors.ts";
 
 Deno.test("createGraphqlResponse", async (t) => {
   await t.step("creates response with data and no errors", () => {
     const response = createGraphqlResponse({
       data: { user: { id: 1, name: "John" } },
-      errors: null,
+      error: null,
       extensions: undefined,
       duration: 100,
       status: 200,
@@ -14,16 +15,16 @@ Deno.test("createGraphqlResponse", async (t) => {
 
     assertEquals(response.ok, true);
     assertEquals(response.data(), { user: { id: 1, name: "John" } });
-    assertEquals(response.errors, null);
+    assertEquals(response.error, null);
     assertEquals(response.duration, 100);
     assertEquals(response.status, 200);
   });
 
-  await t.step("creates response with errors", () => {
-    const errors = [{ message: "Not found" }];
+  await t.step("creates response with error", () => {
+    const error = new GraphqlExecutionError([{ message: "Not found" }]);
     const response = createGraphqlResponse({
       data: null,
-      errors,
+      error,
       extensions: undefined,
       duration: 50,
       status: 200,
@@ -32,13 +33,14 @@ Deno.test("createGraphqlResponse", async (t) => {
 
     assertEquals(response.ok, false);
     assertEquals(response.data(), null);
-    assertEquals(response.errors, errors);
+    assertEquals(response.error, error);
   });
 
-  await t.step("ok is false when errors present even with partial data", () => {
+  await t.step("ok is false when error present even with partial data", () => {
+    const error = new GraphqlExecutionError([{ message: "Field error" }]);
     const response = createGraphqlResponse({
       data: { user: null },
-      errors: [{ message: "Field error" }],
+      error,
       extensions: undefined,
       duration: 50,
       status: 200,
@@ -49,23 +51,10 @@ Deno.test("createGraphqlResponse", async (t) => {
     assertEquals(response.data(), { user: null });
   });
 
-  await t.step("ok is true when errors is empty array", () => {
-    const response = createGraphqlResponse({
-      data: { test: true },
-      errors: [],
-      extensions: undefined,
-      duration: 50,
-      status: 200,
-      raw: new Response(),
-    });
-
-    assertEquals(response.ok, true);
-  });
-
   await t.step("includes extensions", () => {
     const response = createGraphqlResponse({
       data: { test: true },
-      errors: null,
+      error: null,
       extensions: { tracing: { duration: 123 } },
       duration: 50,
       status: 200,
@@ -79,7 +68,7 @@ Deno.test("createGraphqlResponse", async (t) => {
     const rawResponse = new Response();
     const response = createGraphqlResponse({
       data: null,
-      errors: null,
+      error: null,
       extensions: undefined,
       duration: 10,
       status: 200,
@@ -95,7 +84,7 @@ Deno.test("createGraphqlResponse", async (t) => {
     });
     const response = createGraphqlResponse({
       data: null,
-      errors: null,
+      error: null,
       extensions: undefined,
       duration: 10,
       status: 200,
@@ -113,7 +102,7 @@ Deno.test("createGraphqlResponse", async (t) => {
     }
     const response = createGraphqlResponse({
       data: { user: { id: 1, name: "John" } },
-      errors: null,
+      error: null,
       extensions: undefined,
       duration: 100,
       status: 200,
