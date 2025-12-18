@@ -1,17 +1,26 @@
 import type { ClientResult } from "@probitas/client";
 import type { Document, MongoDocs } from "./types.ts";
-import { MongoNotFoundError } from "./errors.ts";
+import { MongoError, MongoNotFoundError } from "./errors.ts";
+
+// =============================================================================
+// Find Result Types
+// =============================================================================
 
 /**
- * Query result (find, aggregate).
+ * Successful query result (find, aggregate).
  */
-export interface MongoFindResult<T = Document> extends ClientResult {
+export interface MongoFindSuccess<T = Document> extends ClientResult {
   /**
    * Result kind discriminator.
    *
    * Always `"mongo:find"` for MongoDB find operations.
    */
   readonly kind: "mongo:find";
+
+  /**
+   * Indicates operation success.
+   */
+  readonly ok: true;
 
   /**
    * Array of documents matching the query.
@@ -22,15 +31,53 @@ export interface MongoFindResult<T = Document> extends ClientResult {
 }
 
 /**
- * Insert one result.
+ * Failed query result (find, aggregate).
  */
-export interface MongoInsertOneResult extends ClientResult {
+export interface MongoFindFailure extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"mongo:find"` for MongoDB find operations.
+   */
+  readonly kind: "mongo:find";
+
+  /**
+   * Indicates operation failure.
+   */
+  readonly ok: false;
+
+  /**
+   * Error that caused the failure.
+   */
+  readonly error: MongoError;
+}
+
+/**
+ * Query result (find, aggregate) - success or failure.
+ */
+export type MongoFindResult<T = Document> =
+  | MongoFindSuccess<T>
+  | MongoFindFailure;
+
+// =============================================================================
+// InsertOne Result Types
+// =============================================================================
+
+/**
+ * Successful insert one result.
+ */
+export interface MongoInsertOneSuccess extends ClientResult {
   /**
    * Result kind discriminator.
    *
    * Always `"mongo:insert-one"` for single document inserts.
    */
   readonly kind: "mongo:insert-one";
+
+  /**
+   * Indicates operation success.
+   */
+  readonly ok: true;
 
   /**
    * ID of the inserted document.
@@ -41,15 +88,53 @@ export interface MongoInsertOneResult extends ClientResult {
 }
 
 /**
- * Insert many result.
+ * Failed insert one result.
  */
-export interface MongoInsertManyResult extends ClientResult {
+export interface MongoInsertOneFailure extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"mongo:insert-one"` for single document inserts.
+   */
+  readonly kind: "mongo:insert-one";
+
+  /**
+   * Indicates operation failure.
+   */
+  readonly ok: false;
+
+  /**
+   * Error that caused the failure.
+   */
+  readonly error: MongoError;
+}
+
+/**
+ * Insert one result - success or failure.
+ */
+export type MongoInsertOneResult =
+  | MongoInsertOneSuccess
+  | MongoInsertOneFailure;
+
+// =============================================================================
+// InsertMany Result Types
+// =============================================================================
+
+/**
+ * Successful insert many result.
+ */
+export interface MongoInsertManySuccess extends ClientResult {
   /**
    * Result kind discriminator.
    *
    * Always `"mongo:insert-many"` for batch inserts.
    */
   readonly kind: "mongo:insert-many";
+
+  /**
+   * Indicates operation success.
+   */
+  readonly ok: true;
 
   /**
    * Array of IDs for inserted documents.
@@ -65,15 +150,53 @@ export interface MongoInsertManyResult extends ClientResult {
 }
 
 /**
- * Update result.
+ * Failed insert many result.
  */
-export interface MongoUpdateResult extends ClientResult {
+export interface MongoInsertManyFailure extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"mongo:insert-many"` for batch inserts.
+   */
+  readonly kind: "mongo:insert-many";
+
+  /**
+   * Indicates operation failure.
+   */
+  readonly ok: false;
+
+  /**
+   * Error that caused the failure.
+   */
+  readonly error: MongoError;
+}
+
+/**
+ * Insert many result - success or failure.
+ */
+export type MongoInsertManyResult =
+  | MongoInsertManySuccess
+  | MongoInsertManyFailure;
+
+// =============================================================================
+// Update Result Types
+// =============================================================================
+
+/**
+ * Successful update result.
+ */
+export interface MongoUpdateSuccess extends ClientResult {
   /**
    * Result kind discriminator.
    *
    * Always `"mongo:update"` for update operations.
    */
   readonly kind: "mongo:update";
+
+  /**
+   * Indicates operation success.
+   */
+  readonly ok: true;
 
   /**
    * Number of documents matching the filter.
@@ -94,9 +217,40 @@ export interface MongoUpdateResult extends ClientResult {
 }
 
 /**
- * Delete result.
+ * Failed update result.
  */
-export interface MongoDeleteResult extends ClientResult {
+export interface MongoUpdateFailure extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"mongo:update"` for update operations.
+   */
+  readonly kind: "mongo:update";
+
+  /**
+   * Indicates operation failure.
+   */
+  readonly ok: false;
+
+  /**
+   * Error that caused the failure.
+   */
+  readonly error: MongoError;
+}
+
+/**
+ * Update result - success or failure.
+ */
+export type MongoUpdateResult = MongoUpdateSuccess | MongoUpdateFailure;
+
+// =============================================================================
+// Delete Result Types
+// =============================================================================
+
+/**
+ * Successful delete result.
+ */
+export interface MongoDeleteSuccess extends ClientResult {
   /**
    * Result kind discriminator.
    *
@@ -105,15 +259,51 @@ export interface MongoDeleteResult extends ClientResult {
   readonly kind: "mongo:delete";
 
   /**
+   * Indicates operation success.
+   */
+  readonly ok: true;
+
+  /**
    * Number of documents deleted.
    */
   readonly deletedCount: number;
 }
 
 /**
- * FindOne result.
+ * Failed delete result.
  */
-export interface MongoFindOneResult<T = Document> extends ClientResult {
+export interface MongoDeleteFailure extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"mongo:delete"` for delete operations.
+   */
+  readonly kind: "mongo:delete";
+
+  /**
+   * Indicates operation failure.
+   */
+  readonly ok: false;
+
+  /**
+   * Error that caused the failure.
+   */
+  readonly error: MongoError;
+}
+
+/**
+ * Delete result - success or failure.
+ */
+export type MongoDeleteResult = MongoDeleteSuccess | MongoDeleteFailure;
+
+// =============================================================================
+// FindOne Result Types
+// =============================================================================
+
+/**
+ * Successful findOne result.
+ */
+export interface MongoFindOneSuccess<T = Document> extends ClientResult {
   /**
    * Result kind discriminator.
    *
@@ -122,15 +312,53 @@ export interface MongoFindOneResult<T = Document> extends ClientResult {
   readonly kind: "mongo:find-one";
 
   /**
+   * Indicates operation success.
+   */
+  readonly ok: true;
+
+  /**
    * The found document (undefined if not found).
    */
   readonly doc: T | undefined;
 }
 
 /**
- * Count result.
+ * Failed findOne result.
  */
-export interface MongoCountResult extends ClientResult {
+export interface MongoFindOneFailure extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"mongo:find-one"` for single document queries.
+   */
+  readonly kind: "mongo:find-one";
+
+  /**
+   * Indicates operation failure.
+   */
+  readonly ok: false;
+
+  /**
+   * Error that caused the failure.
+   */
+  readonly error: MongoError;
+}
+
+/**
+ * FindOne result - success or failure.
+ */
+export type MongoFindOneResult<T = Document> =
+  | MongoFindOneSuccess<T>
+  | MongoFindOneFailure;
+
+// =============================================================================
+// Count Result Types
+// =============================================================================
+
+/**
+ * Successful count result.
+ */
+export interface MongoCountSuccess extends ClientResult {
   /**
    * Result kind discriminator.
    *
@@ -139,10 +367,42 @@ export interface MongoCountResult extends ClientResult {
   readonly kind: "mongo:count";
 
   /**
+   * Indicates operation success.
+   */
+  readonly ok: true;
+
+  /**
    * Number of documents matching the filter.
    */
   readonly count: number;
 }
+
+/**
+ * Failed count result.
+ */
+export interface MongoCountFailure extends ClientResult {
+  /**
+   * Result kind discriminator.
+   *
+   * Always `"mongo:count"` for count operations.
+   */
+  readonly kind: "mongo:count";
+
+  /**
+   * Indicates operation failure.
+   */
+  readonly ok: false;
+
+  /**
+   * Error that caused the failure.
+   */
+  readonly error: MongoError;
+}
+
+/**
+ * Count result - success or failure.
+ */
+export type MongoCountResult = MongoCountSuccess | MongoCountFailure;
 
 /**
  * Union of all MongoDB result types.
@@ -198,4 +458,113 @@ export function createMongoDocs<T>(items: T[]): MongoDocs<T> {
   });
 
   return arr;
+}
+
+// =============================================================================
+// Failure Result Factory Functions
+// =============================================================================
+
+/**
+ * Create a MongoFindFailure result.
+ */
+export function createMongoFindFailure(
+  error: MongoError,
+  duration: number,
+): MongoFindFailure {
+  return {
+    kind: "mongo:find",
+    ok: false,
+    error,
+    duration,
+  };
+}
+
+/**
+ * Create a MongoFindOneFailure result.
+ */
+export function createMongoFindOneFailure(
+  error: MongoError,
+  duration: number,
+): MongoFindOneFailure {
+  return {
+    kind: "mongo:find-one",
+    ok: false,
+    error,
+    duration,
+  };
+}
+
+/**
+ * Create a MongoInsertOneFailure result.
+ */
+export function createMongoInsertOneFailure(
+  error: MongoError,
+  duration: number,
+): MongoInsertOneFailure {
+  return {
+    kind: "mongo:insert-one",
+    ok: false,
+    error,
+    duration,
+  };
+}
+
+/**
+ * Create a MongoInsertManyFailure result.
+ */
+export function createMongoInsertManyFailure(
+  error: MongoError,
+  duration: number,
+): MongoInsertManyFailure {
+  return {
+    kind: "mongo:insert-many",
+    ok: false,
+    error,
+    duration,
+  };
+}
+
+/**
+ * Create a MongoUpdateFailure result.
+ */
+export function createMongoUpdateFailure(
+  error: MongoError,
+  duration: number,
+): MongoUpdateFailure {
+  return {
+    kind: "mongo:update",
+    ok: false,
+    error,
+    duration,
+  };
+}
+
+/**
+ * Create a MongoDeleteFailure result.
+ */
+export function createMongoDeleteFailure(
+  error: MongoError,
+  duration: number,
+): MongoDeleteFailure {
+  return {
+    kind: "mongo:delete",
+    ok: false,
+    error,
+    duration,
+  };
+}
+
+/**
+ * Create a MongoCountFailure result.
+ */
+export function createMongoCountFailure(
+  error: MongoError,
+  duration: number,
+): MongoCountFailure {
+  return {
+    kind: "mongo:count",
+    ok: false,
+    error,
+    duration,
+  };
 }

@@ -1,24 +1,53 @@
 import type { CommonConnectionConfig, CommonOptions } from "@probitas/client";
+// Note: CommonOptions is used indirectly through MongoOptions which extends it
 import type {
+  MongoCountFailure,
   MongoCountResult,
+  MongoCountSuccess,
+  MongoDeleteFailure,
   MongoDeleteResult,
+  MongoDeleteSuccess,
+  MongoFindFailure,
+  MongoFindOneFailure,
   MongoFindOneResult,
+  MongoFindOneSuccess,
   MongoFindResult,
+  MongoFindSuccess,
+  MongoInsertManyFailure,
   MongoInsertManyResult,
+  MongoInsertManySuccess,
+  MongoInsertOneFailure,
   MongoInsertOneResult,
+  MongoInsertOneSuccess,
   MongoResult,
+  MongoUpdateFailure,
   MongoUpdateResult,
+  MongoUpdateSuccess,
 } from "./results.ts";
 
 export type {
+  MongoCountFailure,
   MongoCountResult,
+  MongoCountSuccess,
+  MongoDeleteFailure,
   MongoDeleteResult,
+  MongoDeleteSuccess,
+  MongoFindFailure,
+  MongoFindOneFailure,
   MongoFindOneResult,
+  MongoFindOneSuccess,
   MongoFindResult,
+  MongoFindSuccess,
+  MongoInsertManyFailure,
   MongoInsertManyResult,
+  MongoInsertManySuccess,
+  MongoInsertOneFailure,
   MongoInsertOneResult,
+  MongoInsertOneSuccess,
   MongoResult,
+  MongoUpdateFailure,
   MongoUpdateResult,
+  MongoUpdateSuccess,
 };
 
 /**
@@ -74,9 +103,26 @@ export type Filter = Record<string, any>;
 export type UpdateFilter = Record<string, any>;
 
 /**
+ * Common options for MongoDB operations with throwOnError support.
+ */
+export interface MongoOptions extends CommonOptions {
+  /**
+   * Whether to throw an error when an operation fails.
+   *
+   * When `false` (default), errors are returned as part of the result object
+   * with `ok: false` and an `error` property containing the error details.
+   *
+   * When `true`, errors are thrown as exceptions.
+   *
+   * @default false (inherited from client config, or false if not set)
+   */
+  readonly throwOnError?: boolean;
+}
+
+/**
  * MongoDB find options
  */
-export interface MongoFindOptions extends CommonOptions {
+export interface MongoFindOptions extends MongoOptions {
   readonly sort?: Record<string, 1 | -1>;
   readonly limit?: number;
   readonly skip?: number;
@@ -86,7 +132,7 @@ export interface MongoFindOptions extends CommonOptions {
 /**
  * MongoDB update options
  */
-export interface MongoUpdateOptions extends CommonOptions {
+export interface MongoUpdateOptions extends MongoOptions {
   readonly upsert?: boolean;
 }
 
@@ -115,7 +161,7 @@ export interface MongoUpdateOptions extends CommonOptions {
  * };
  * ```
  */
-export interface MongoClientConfig extends CommonOptions {
+export interface MongoClientConfig extends MongoOptions {
   /**
    * MongoDB connection URL or configuration object.
    */
@@ -144,15 +190,15 @@ export interface MongoCollection<T extends Document> {
   ): Promise<MongoFindResult<T>>;
   findOne(
     filter: Filter,
-    options?: CommonOptions,
+    options?: MongoOptions,
   ): Promise<MongoFindOneResult<T>>;
   insertOne(
     doc: Omit<T, "_id">,
-    options?: CommonOptions,
+    options?: MongoOptions,
   ): Promise<MongoInsertOneResult>;
   insertMany(
     docs: Omit<T, "_id">[],
-    options?: CommonOptions,
+    options?: MongoOptions,
   ): Promise<MongoInsertManyResult>;
   updateOne(
     filter: Filter,
@@ -166,19 +212,19 @@ export interface MongoCollection<T extends Document> {
   ): Promise<MongoUpdateResult>;
   deleteOne(
     filter: Filter,
-    options?: CommonOptions,
+    options?: MongoOptions,
   ): Promise<MongoDeleteResult>;
   deleteMany(
     filter: Filter,
-    options?: CommonOptions,
+    options?: MongoOptions,
   ): Promise<MongoDeleteResult>;
   aggregate<R = T>(
     pipeline: Document[],
-    options?: CommonOptions,
+    options?: MongoOptions,
   ): Promise<MongoFindResult<R>>;
   countDocuments(
     filter?: Filter,
-    options?: CommonOptions,
+    options?: MongoOptions,
   ): Promise<MongoCountResult>;
 }
 

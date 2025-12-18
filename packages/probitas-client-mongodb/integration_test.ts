@@ -72,7 +72,9 @@ Deno.test({
     await t.step("insertOne: inserts a document", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.insertOne({ name: "Alice", age: 30 });
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertExists(result.insertedId);
     });
 
@@ -83,7 +85,9 @@ Deno.test({
         { name: "Charlie", age: 35 },
         { name: "Diana", age: 28 },
       ]);
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertExists(result.insertedIds);
       assertEquals(result.insertedCount, 3);
     });
@@ -91,7 +95,9 @@ Deno.test({
     await t.step("find: retrieves all documents", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.find();
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.docs.length > 0, true);
       assertEquals(result.docs.length, 4);
     });
@@ -99,7 +105,9 @@ Deno.test({
     await t.step("find: with filter", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.find({ age: { $gte: 30 } });
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.docs.length > 0, true);
       assertEquals(result.docs.length, 2);
       assertEquals(
@@ -115,7 +123,9 @@ Deno.test({
     await t.step("find: with sort and limit", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.find({}, { sort: { age: 1 }, limit: 2 });
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.docs.length, 2);
       assertEquals(result.docs.first()?.name, "Bob");
       assertEquals(result.docs.last()?.name, "Diana");
@@ -124,7 +134,9 @@ Deno.test({
     await t.step("findOne: retrieves single document", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.findOne({ name: "Alice" });
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertExists(result.doc);
       assertEquals(result.doc.name, "Alice");
       assertEquals(result.doc.age, 30);
@@ -133,7 +145,9 @@ Deno.test({
     await t.step("findOne: returns undefined when not found", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.findOne({ name: "NonExistent" });
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.doc, undefined);
     });
 
@@ -143,7 +157,9 @@ Deno.test({
         { name: "Alice" },
         { $set: { age: 31 } },
       );
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.matchedCount, 1);
       assertEquals(result.modifiedCount, 1);
     });
@@ -155,7 +171,9 @@ Deno.test({
         { $set: { name: "Eve", age: 22 } },
         { upsert: true },
       );
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertExists(result.upsertedId);
     });
 
@@ -165,7 +183,9 @@ Deno.test({
         { age: { $lt: 30 } },
         { $inc: { age: 1 } },
       );
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.matchedCount, 3);
       assertEquals(result.modifiedCount, 3);
     });
@@ -173,14 +193,18 @@ Deno.test({
     await t.step("countDocuments: counts documents", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.countDocuments();
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.count, 5);
     });
 
     await t.step("countDocuments: with filter", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.countDocuments({ age: { $gte: 30 } });
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.count, 2);
     });
 
@@ -189,7 +213,9 @@ Deno.test({
       const result = await users.aggregate<{ _id: null; avgAge: number }>([
         { $group: { _id: null, avgAge: { $avg: "$age" } } },
       ]);
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.docs.length > 0, true);
       assertEquals(result.docs.length, 1);
       assertExists(result.docs.first()?.avgAge);
@@ -198,14 +224,18 @@ Deno.test({
     await t.step("deleteOne: deletes a document", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.deleteOne({ name: "Eve" });
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.deletedCount, 1);
     });
 
     await t.step("deleteMany: deletes multiple documents", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.deleteMany({ age: { $lt: 30 } });
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertGreaterOrEqual(result.deletedCount, 1);
     });
 
@@ -243,7 +273,9 @@ Deno.test({
 
       const users = client.collection<User>(testCollection);
       const result = await users.countDocuments();
-      assertEquals(result.ok, true);
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.count, 2);
     });
 
@@ -278,24 +310,36 @@ Deno.test({
     await t.step("first() returns first document", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.find({}, { sort: { age: 1 } });
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.docs.first()?.name, "First");
     });
 
     await t.step("last() returns last document", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.find({}, { sort: { age: 1 } });
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.docs.last()?.name, "Last");
     });
 
     await t.step("firstOrThrow() returns first document", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.find({}, { sort: { age: 1 } });
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.docs.firstOrThrow().name, "First");
     });
 
     await t.step("lastOrThrow() returns last document", async () => {
       const users = client.collection<User>(testCollection);
       const result = await users.find({}, { sort: { age: 1 } });
+      if (!result.ok) {
+        throw new Error(`Expected ok but got error: ${result.error.message}`);
+      }
       assertEquals(result.docs.lastOrThrow().name, "Last");
     });
 
