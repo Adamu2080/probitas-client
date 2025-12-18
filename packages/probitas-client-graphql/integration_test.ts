@@ -259,7 +259,9 @@ Deno.test({
       async () => {
         // echo-graphql returns HTTP 422 for invalid queries
         try {
-          await client.query("{ nonExistentField }");
+          await client.query("{ nonExistentField }", undefined, {
+            throwOnError: true,
+          });
           throw new Error("Expected GraphqlNetworkError");
         } catch (error) {
           assertInstanceOf(error, GraphqlNetworkError);
