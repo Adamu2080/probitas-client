@@ -1,23 +1,30 @@
+import { AbortError, TimeoutError } from "@probitas/client";
 import type {
   BodyInit,
   HttpClient,
   HttpClientConfig,
   HttpConnectionConfig,
   HttpOptions,
-  HttpResponse,
   QueryValue,
 } from "./types.ts";
+import type { HttpResponse } from "./response.ts";
 import {
   HttpBadRequestError,
   HttpConflictError,
   HttpError,
+  type HttpFailureError,
   HttpForbiddenError,
   HttpInternalServerError,
+  HttpNetworkError,
   HttpNotFoundError,
   HttpTooManyRequestsError,
   HttpUnauthorizedError,
 } from "./errors.ts";
-import { createHttpResponse } from "./response.ts";
+import {
+  createHttpResponseError,
+  createHttpResponseFailure,
+  createHttpResponseSuccess,
+} from "./response.ts";
 import { getLogger } from "@probitas/logger";
 
 const logger = getLogger("probitas", "client", "http");
@@ -148,31 +155,101 @@ function parseSetCookie(
 }
 
 /**
- * Throw appropriate HttpError based on status code.
+ * Format body detail for error message.
  */
-function throwHttpError(response: HttpResponse): never {
-  const { status, statusText } = response;
-  const message = `HTTP ${status}: ${statusText}`;
-  const options = { response };
+function formatBodyDetail(bodyText: string | null): string {
+  if (!bodyText) {
+    return "";
+  }
+
+  // Try to parse as JSON and format with Deno.inspect
+  let detail = bodyText;
+  try {
+    const parsed = JSON.parse(bodyText);
+    detail = Deno.inspect(parsed, {
+      compact: false,
+      sorted: true,
+      trailingComma: true,
+    });
+  } catch {
+    // Not JSON, skip.
+  }
+  const indented = detail
+    .split("\n")
+    .map((line) => `  ${line}`)
+    .join("\n");
+  return `\n\n${indented}`;
+}
+
+/**
+ * Create appropriate HttpError based on status code.
+ */
+function createHttpError(
+  status: number,
+  statusText: string,
+  bodyText: string | null,
+): HttpError {
+  const detail = formatBodyDetail(bodyText);
+  const message = `${status}: ${statusText}${detail}`;
 
   switch (status) {
     case 400:
-      throw new HttpBadRequestError(message, options);
+      return new HttpBadRequestError(message);
     case 401:
-      throw new HttpUnauthorizedError(message, options);
+      return new HttpUnauthorizedError(message);
     case 403:
-      throw new HttpForbiddenError(message, options);
+      return new HttpForbiddenError(message);
     case 404:
-      throw new HttpNotFoundError(message, options);
+      return new HttpNotFoundError(message);
     case 409:
-      throw new HttpConflictError(message, options);
+      return new HttpConflictError(message);
     case 429:
-      throw new HttpTooManyRequestsError(message, options);
+      return new HttpTooManyRequestsError(message);
     case 500:
-      throw new HttpInternalServerError(message, options);
+      return new HttpInternalServerError(message);
     default:
-      throw new HttpError(message, status, statusText, options);
+      return new HttpError(message, status, statusText);
   }
+}
+
+/**
+ * Convert fetch error to appropriate client error.
+ */
+function convertFetchError(error: unknown): HttpFailureError {
+  if (error instanceof AbortError || error instanceof TimeoutError) {
+    return error;
+  }
+  if (error instanceof HttpNetworkError) {
+    return error;
+  }
+  if (error instanceof Error) {
+    // AbortError from AbortSignal
+    if (error.name === "AbortError") {
+      return new AbortError("Request was aborted", { cause: error });
+    }
+    // TimeoutError (DOMException with TimeoutError name)
+    if (error.name === "TimeoutError") {
+      return new TimeoutError("Request timed out", 0, { cause: error });
+    }
+    // TypeError from fetch usually indicates network error
+    if (error instanceof TypeError) {
+      return new HttpNetworkError(
+        `Connection failed: ${error.message}`,
+        { cause: error },
+      );
+    }
+    // DOMException for network errors
+    if (error.name === "NetworkError") {
+      return new HttpNetworkError(
+        `Network error: ${error.message}`,
+        { cause: error },
+      );
+    }
+    // Wrap other errors in HttpNetworkError
+    return new HttpNetworkError(error.message, { cause: error });
+  }
+  // Unknown error type
+  return new HttpNetworkError(String(error));
 }
 
 /**
@@ -302,16 +379,62 @@ class HttpClientImpl implements HttpClient {
     const redirect = options?.redirect ?? this.config.redirect ?? "follow";
     const startTime = performance.now();
 
-    const rawResponse = await fetchFn(url, {
-      method,
-      headers,
-      body: prepared.body as globalThis.BodyInit,
-      signal: options?.signal,
-      redirect,
-    });
+    // Determine whether to throw on error (request option > config > default false)
+    const shouldThrow = options?.throwOnError ?? this.config.throwOnError ??
+      false;
+
+    // Attempt fetch - may fail due to network errors
+    let rawResponse: globalThis.Response;
+    try {
+      rawResponse = await fetchFn(url, {
+        method,
+        headers,
+        body: prepared.body as globalThis.BodyInit,
+        signal: options?.signal,
+        redirect,
+      });
+    } catch (fetchError) {
+      const duration = performance.now() - startTime;
+      const error = convertFetchError(fetchError);
+
+      // Return failure response or throw based on throwOnError
+      if (shouldThrow) {
+        throw error;
+      }
+      return createHttpResponseFailure(url, duration, error);
+    }
 
     const duration = performance.now() - startTime;
-    const response = await createHttpResponse(rawResponse, duration);
+
+    // Read body first (needed for both success/error response and error message)
+    let responseBody: Uint8Array | null = null;
+    if (rawResponse.body !== null) {
+      const arrayBuffer = await rawResponse.arrayBuffer();
+      if (arrayBuffer.byteLength > 0) {
+        responseBody = new Uint8Array(arrayBuffer);
+      }
+    }
+
+    // Create appropriate response type based on status
+    let response: HttpResponse;
+    if (rawResponse.ok) {
+      response = createHttpResponseSuccess(rawResponse, responseBody, duration);
+    } else {
+      const bodyText = responseBody
+        ? new TextDecoder().decode(responseBody)
+        : null;
+      const httpError = createHttpError(
+        rawResponse.status,
+        rawResponse.statusText,
+        bodyText,
+      );
+      response = createHttpResponseError(
+        rawResponse,
+        responseBody,
+        duration,
+        httpError,
+      );
+    }
 
     // Log response
     logger.info("HTTP response received", {
@@ -320,7 +443,7 @@ class HttpClientImpl implements HttpClient {
       status: response.status,
       statusText: response.statusText,
       duration: `${duration.toFixed(2)}ms`,
-      contentType: response.headers.get("content-type"),
+      contentType: response.headers?.get("content-type"),
       contentLength: response.body?.length,
     });
     logger.trace("HTTP response details", {
@@ -347,12 +470,9 @@ class HttpClientImpl implements HttpClient {
       }
     }
 
-    // Determine whether to throw on error (request option > config > default true)
-    const shouldThrow = options?.throwOnError ?? this.config.throwOnError ??
-      true;
-
+    // Throw error if required
     if (!response.ok && shouldThrow) {
-      throwHttpError(response);
+      throw response.error;
     }
 
     return response;

@@ -1,4 +1,4 @@
-import { ClientError } from "@probitas/client";
+import { AbortError, ClientError, TimeoutError } from "@probitas/client";
 import type { HttpResponse } from "./types.ts";
 
 /**
@@ -128,3 +128,41 @@ export class HttpInternalServerError extends HttpError {
     super(message, 500, "Internal Server Error", options);
   }
 }
+
+/**
+ * Error thrown when a network-level failure occurs.
+ *
+ * This error indicates that the request could not be processed by the server
+ * due to network issues (connection refused, DNS resolution failure, etc.).
+ */
+export class HttpNetworkError extends ClientError {
+  override readonly name = "HttpNetworkError";
+  override readonly kind = "network" as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, "network", options);
+  }
+}
+
+/**
+ * Error types that indicate an operation was processed by the server.
+ * These errors occur after the HTTP request reaches the server.
+ */
+export type HttpOperationError =
+  | HttpBadRequestError
+  | HttpUnauthorizedError
+  | HttpForbiddenError
+  | HttpNotFoundError
+  | HttpConflictError
+  | HttpTooManyRequestsError
+  | HttpInternalServerError
+  | HttpError;
+
+/**
+ * Error types that indicate the operation was not processed.
+ * These are errors that occur before the request reaches the server.
+ */
+export type HttpFailureError =
+  | HttpNetworkError
+  | AbortError
+  | TimeoutError;

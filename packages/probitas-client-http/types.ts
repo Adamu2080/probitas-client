@@ -1,7 +1,17 @@
 import type { CommonConnectionConfig, CommonOptions } from "@probitas/client";
-import type { HttpResponse } from "./response.ts";
+import type {
+  HttpResponse,
+  HttpResponseError,
+  HttpResponseFailure,
+  HttpResponseSuccess,
+} from "./response.ts";
 
-export type { HttpResponse };
+export type {
+  HttpResponse,
+  HttpResponseError,
+  HttpResponseFailure,
+  HttpResponseSuccess,
+};
 
 /**
  * Query parameter value type.

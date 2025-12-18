@@ -1,4 +1,9 @@
-import { assertEquals, assertInstanceOf } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertFalse,
+  assertInstanceOf,
+} from "@std/assert";
 import { createHttpResponse } from "./response.ts";
 
 Deno.test("createHttpResponse", async (t) => {
@@ -12,8 +17,9 @@ Deno.test("createHttpResponse", async (t) => {
 
     const response = await createHttpResponse(raw, duration);
 
+    assert(response.processed);
     assertEquals(response.kind, "http");
-    assertEquals(response.ok, true);
+    assert(response.ok);
     assertEquals(response.status, 200);
     assertEquals(response.statusText, "OK");
     assertEquals(response.headers.get("content-type"), "application/json");
@@ -30,7 +36,7 @@ Deno.test("createHttpResponse", async (t) => {
 
     const response = await createHttpResponse(raw, duration);
 
-    assertEquals(response.ok, true);
+    assert(response.ok);
     assertEquals(response.status, 204);
     assertEquals(response.statusText, "No Content");
     assertEquals(response.body, null);
@@ -155,7 +161,7 @@ Deno.test("createHttpResponse", async (t) => {
     const raw = new Response("not found", { status: 404 });
     const response = await createHttpResponse(raw, 10);
 
-    assertEquals(response.ok, false);
+    assertFalse(response.ok);
     assertEquals(response.status, 404);
   });
 
@@ -163,7 +169,7 @@ Deno.test("createHttpResponse", async (t) => {
     const raw = new Response("server error", { status: 500 });
     const response = await createHttpResponse(raw, 10);
 
-    assertEquals(response.ok, false);
+    assertFalse(response.ok);
     assertEquals(response.status, 500);
   });
 });

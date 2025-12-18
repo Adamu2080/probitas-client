@@ -1,11 +1,14 @@
 import {
+  assert,
   assertEquals,
+  assertFalse,
   assertInstanceOf,
   assertRejects,
   assertThrows,
 } from "@std/assert";
+import { AbortError } from "@probitas/client";
 import { createHttpClient } from "./client.ts";
-import { HttpNotFoundError } from "./errors.ts";
+import { HttpNetworkError, HttpNotFoundError } from "./errors.ts";
 
 function createMockFetch(
   handler: (req: Request) => Response | Promise<Response>,
@@ -70,7 +73,7 @@ Deno.test("HttpClient.get", async (t) => {
     const response = await client.get("/users/1");
     await client.close();
 
-    assertEquals(response.ok, true);
+    assert(response.ok);
     assertEquals(response.status, 200);
     assertEquals(response.json(), { id: 1, name: "John" });
   });
@@ -339,27 +342,31 @@ Deno.test("HttpClient.request", async (t) => {
 });
 
 Deno.test("HttpClient error handling", async (t) => {
-  await t.step("throws HttpNotFoundError for 404", async () => {
-    const mockFetch = createMockFetch(() => {
-      return new Response("Not Found", {
-        status: 404,
-        statusText: "Not Found",
+  await t.step(
+    "throws HttpNotFoundError for 404 when throwOnError: true",
+    async () => {
+      const mockFetch = createMockFetch(() => {
+        return new Response("Not Found", {
+          status: 404,
+          statusText: "Not Found",
+        });
       });
-    });
 
-    const client = createHttpClient({
-      url: "http://localhost:3000",
-      fetch: mockFetch,
-    });
+      const client = createHttpClient({
+        url: "http://localhost:3000",
+        fetch: mockFetch,
+        throwOnError: true,
+      });
 
-    const error = await assertRejects(
-      () => client.get("/missing"),
-      HttpNotFoundError,
-    );
-    assertInstanceOf(error, HttpNotFoundError);
-    assertEquals(error.status, 404);
-    await client.close();
-  });
+      const error = await assertRejects(
+        () => client.get("/missing"),
+        HttpNotFoundError,
+      );
+      assertInstanceOf(error, HttpNotFoundError);
+      assertEquals(error.status, 404);
+      await client.close();
+    },
+  );
 });
 
 Deno.test("HttpClient response duration", async (t) => {
@@ -382,9 +389,12 @@ Deno.test("HttpClient response duration", async (t) => {
 });
 
 Deno.test("HttpClient throwOnError option", async (t) => {
-  await t.step("throws by default for 4xx response", async () => {
+  await t.step("returns response by default for 4xx response", async () => {
     const mockFetch = createMockFetch(() => {
-      return new Response("Not Found", { status: 404 });
+      return new Response("Not Found", {
+        status: 404,
+        statusText: "Not Found",
+      });
     });
 
     const client = createHttpClient({
@@ -392,8 +402,12 @@ Deno.test("HttpClient throwOnError option", async (t) => {
       fetch: mockFetch,
     });
 
-    await assertRejects(() => client.get("/missing"), HttpNotFoundError);
+    const response = await client.get("/missing");
     await client.close();
+
+    assertFalse(response.ok);
+    assertEquals(response.status, 404);
+    assertInstanceOf(response.error, HttpNotFoundError);
   });
 
   await t.step(
@@ -414,7 +428,7 @@ Deno.test("HttpClient throwOnError option", async (t) => {
       const response = await client.get("/missing", { throwOnError: false });
       await client.close();
 
-      assertEquals(response.ok, false);
+      assertFalse(response.ok);
       assertEquals(response.status, 404);
       assertEquals(response.statusText, "Not Found");
     },
@@ -439,7 +453,7 @@ Deno.test("HttpClient throwOnError option", async (t) => {
       const response = await client.get("/error");
       await client.close();
 
-      assertEquals(response.ok, false);
+      assertFalse(response.ok);
       assertEquals(response.status, 500);
     },
   );
@@ -481,7 +495,7 @@ Deno.test("HttpClient throwOnError option", async (t) => {
       const response = await client.get("/missing", { throwOnError: false });
       await client.close();
 
-      assertEquals(response.ok, false);
+      assertFalse(response.ok);
       assertEquals(response.status, 404);
     },
   );
@@ -721,4 +735,137 @@ Deno.test("HttpClient cookie handling", async (t) => {
     assertEquals(cookieHeader, "session=first");
     await client.close();
   });
+});
+
+function createFailingFetch(error: Error): typeof fetch {
+  return () => {
+    return Promise.reject(error);
+  };
+}
+
+Deno.test("HttpClient network failure handling", async (t) => {
+  await t.step(
+    "returns HttpResponseFailure for network error when throwOnError: false",
+    async () => {
+      const mockFetch = createFailingFetch(new TypeError("Failed to fetch"));
+
+      const client = createHttpClient({
+        url: "http://localhost:3000",
+        fetch: mockFetch,
+        throwOnError: false,
+      });
+
+      const response = await client.get("/api");
+      await client.close();
+
+      assertEquals(response.processed, false);
+      assertFalse(response.ok);
+      assertInstanceOf(response.error, HttpNetworkError);
+      assertEquals(response.status, null);
+      assertEquals(response.statusText, null);
+      assertEquals(response.headers, null);
+      assertEquals(response.body, null);
+      assertEquals(response.url, "http://localhost:3000/api");
+      assertEquals(typeof response.duration, "number");
+    },
+  );
+
+  await t.step(
+    "throws HttpNetworkError for network error when throwOnError: true",
+    async () => {
+      const mockFetch = createFailingFetch(new TypeError("Failed to fetch"));
+
+      const client = createHttpClient({
+        url: "http://localhost:3000",
+        fetch: mockFetch,
+        throwOnError: true,
+      });
+
+      await assertRejects(
+        () => client.get("/api"),
+        HttpNetworkError,
+      );
+      await client.close();
+    },
+  );
+
+  await t.step(
+    "returns HttpResponseFailure for abort when throwOnError: false",
+    async () => {
+      const abortError = new DOMException("Aborted", "AbortError");
+      const mockFetch = createFailingFetch(abortError);
+
+      const client = createHttpClient({
+        url: "http://localhost:3000",
+        fetch: mockFetch,
+        throwOnError: false,
+      });
+
+      const response = await client.get("/api");
+      await client.close();
+
+      assertEquals(response.processed, false);
+      assertFalse(response.ok);
+      assertInstanceOf(response.error, AbortError);
+    },
+  );
+
+  await t.step(
+    "throws AbortError for abort when throwOnError: true",
+    async () => {
+      const abortError = new DOMException("Aborted", "AbortError");
+      const mockFetch = createFailingFetch(abortError);
+
+      const client = createHttpClient({
+        url: "http://localhost:3000",
+        fetch: mockFetch,
+        throwOnError: true,
+      });
+
+      await assertRejects(
+        () => client.get("/api"),
+        AbortError,
+      );
+      await client.close();
+    },
+  );
+
+  await t.step("HttpResponseFailure methods return null", async () => {
+    const mockFetch = createFailingFetch(new TypeError("Failed to fetch"));
+
+    const client = createHttpClient({
+      url: "http://localhost:3000",
+      fetch: mockFetch,
+      throwOnError: false,
+    });
+
+    const response = await client.get("/api");
+    await client.close();
+
+    assert(!response.processed);
+    assertEquals(response.raw(), null);
+    assertEquals(response.arrayBuffer(), null);
+    assertEquals(response.blob(), null);
+    assertEquals(response.text(), null);
+    assertEquals(response.json(), null);
+  });
+
+  await t.step(
+    "request option overrides config for failure (throwOnError: false)",
+    async () => {
+      const mockFetch = createFailingFetch(new TypeError("Failed to fetch"));
+
+      const client = createHttpClient({
+        url: "http://localhost:3000",
+        fetch: mockFetch,
+        throwOnError: true,
+      });
+
+      const response = await client.get("/api", { throwOnError: false });
+      await client.close();
+
+      assertEquals(response.processed, false);
+      assertInstanceOf(response.error, HttpNetworkError);
+    },
+  );
 });
