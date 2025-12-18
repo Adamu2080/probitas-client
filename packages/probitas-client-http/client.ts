@@ -424,7 +424,7 @@ class HttpClientImpl implements HttpClient {
  *
  * const response = await http.get("/users/123");
  * if ("status" in response) {
- *   console.log(response.data());
+ *   console.log(response.json());
  * }
  *
  * await http.close();

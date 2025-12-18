@@ -56,7 +56,7 @@ export interface HttpResponse extends ClientResult {
    * @template T - defaults to any for test convenience
    */
   // deno-lint-ignore no-explicit-any
-  data<T = any>(): T | null;
+  json<T = any>(): T | null;
 
   // --- Additional properties ---
 
@@ -134,7 +134,7 @@ class HttpResponseImpl implements HttpResponse {
   }
 
   // deno-lint-ignore no-explicit-any
-  data<T = any>(): T | null {
+  json<T = any>(): T | null {
     if (this.body === null) {
       return null;
     }
@@ -203,7 +203,7 @@ export interface HttpResponseFailure {
  * const result = await http.get("/api/data");
  * if ("status" in result) {
  *   // result is HttpResponse - request completed
- *   console.log(result.status, result.data());
+ *   console.log(result.status, result.json());
  * } else {
  *   // result is HttpResponseFailure - request failed
  *   console.error(result.error.message);

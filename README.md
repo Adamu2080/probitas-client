@@ -68,7 +68,7 @@ export default scenario("example http request")
     const response = ctx.previous;
     if (!("status" in response)) throw new Error("Expected HttpResponse");
     assertEquals(response.status, 200);
-    assertEquals(response.data().args.hello, "world");
+    assertEquals(response.json().args.hello, "world");
   })
   .build();
 ```
