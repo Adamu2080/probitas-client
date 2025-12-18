@@ -197,9 +197,9 @@ class GraphqlClientImpl implements GraphqlClient {
       data: formatData(responseBody.data),
     });
 
-    // Determine whether to throw on errors (request option > config > default true)
+    // Determine whether to throw on errors (request option > config > default false)
     const shouldThrow = options?.throwOnError ?? this.config.throwOnError ??
-      true;
+      false;
 
     if (!response.ok && shouldThrow && response.errors) {
       throw new GraphqlExecutionError(response.errors, { response });
@@ -385,7 +385,7 @@ class GraphqlClientImpl implements GraphqlClient {
 
           // Determine whether to throw on errors
           const shouldThrow = options?.throwOnError ??
-            this.config.throwOnError ?? true;
+            this.config.throwOnError ?? false;
 
           if (!response.ok && shouldThrow && response.errors) {
             throw new GraphqlExecutionError(response.errors, { response });

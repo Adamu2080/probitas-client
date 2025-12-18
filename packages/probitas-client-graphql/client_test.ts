@@ -118,7 +118,7 @@ Deno.test("GraphqlClient.query", async (t) => {
   });
 
   await t.step(
-    "throws GraphqlExecutionError on errors by default",
+    "returns error response by default",
     async () => {
       const mockFetch = createMockFetch(() => {
         return new Response(
@@ -132,6 +132,33 @@ Deno.test("GraphqlClient.query", async (t) => {
       const client = createGraphqlClient({
         url: "http://localhost:4000/graphql",
         fetch: mockFetch,
+      });
+
+      const response = await client.query("query { user { id } }");
+      await client.close();
+
+      assertEquals(response.ok, false);
+      assertEquals(response.errors?.length, 1);
+      assertEquals(response.errors?.[0].message, "User not found");
+    },
+  );
+
+  await t.step(
+    "throws GraphqlExecutionError when throwOnError: true in config",
+    async () => {
+      const mockFetch = createMockFetch(() => {
+        return new Response(
+          JSON.stringify({
+            data: null,
+            errors: [{ message: "User not found" }],
+          }),
+        );
+      });
+
+      const client = createGraphqlClient({
+        url: "http://localhost:4000/graphql",
+        fetch: mockFetch,
+        throwOnError: true,
       });
 
       const error = await assertRejects(
@@ -145,34 +172,7 @@ Deno.test("GraphqlClient.query", async (t) => {
   );
 
   await t.step(
-    "returns response with errors when throwOnError: false in config",
-    async () => {
-      const mockFetch = createMockFetch(() => {
-        return new Response(
-          JSON.stringify({
-            data: null,
-            errors: [{ message: "User not found" }],
-          }),
-        );
-      });
-
-      const client = createGraphqlClient({
-        url: "http://localhost:4000/graphql",
-        fetch: mockFetch,
-        throwOnError: false,
-      });
-
-      const response = await client.query("query { user { id } }");
-      await client.close();
-
-      assertEquals(response.ok, false);
-      assertEquals(response.errors?.length, 1);
-      assertEquals(response.errors?.[0].message, "User not found");
-    },
-  );
-
-  await t.step(
-    "returns response with errors when throwOnError: false in options",
+    "throws GraphqlExecutionError when throwOnError: true in options",
     async () => {
       const mockFetch = createMockFetch(() => {
         return new Response(
@@ -188,12 +188,11 @@ Deno.test("GraphqlClient.query", async (t) => {
         fetch: mockFetch,
       });
 
-      const response = await client.query("query { test }", undefined, {
-        throwOnError: false,
-      });
+      await assertRejects(
+        () => client.query("query { test }", undefined, { throwOnError: true }),
+        GraphqlExecutionError,
+      );
       await client.close();
-
-      assertEquals(response.ok, false);
     },
   );
 

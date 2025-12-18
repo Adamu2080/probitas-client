@@ -261,9 +261,27 @@ Deno.test({
       },
     );
 
-    await t.step("throwOnError: true (default) throws error", async () => {
+    await t.step(
+      "throwOnError: false (default) returns error response",
+      async () => {
+        await using client = createGrpcClient({
+          url: GRPC_URL,
+        });
+
+        const response = await client.call(
+          "echo.v1.Echo",
+          "EchoError",
+          { message: "trigger error", code: 3, details: "test error" },
+        );
+
+        assertEquals(response.ok, false);
+      },
+    );
+
+    await t.step("throwOnError: true throws error", async () => {
       await using client = createGrpcClient({
         url: GRPC_URL,
+        throwOnError: true,
       });
 
       await assertRejects(
@@ -278,16 +296,17 @@ Deno.test({
       );
     });
 
-    await t.step("client config throwOnError: false", async () => {
+    await t.step("request option overrides client config", async () => {
       await using client = createGrpcClient({
         url: GRPC_URL,
-        throwOnError: false,
+        throwOnError: true,
       });
 
       const response = await client.call(
         "echo.v1.Echo",
         "EchoError",
         { message: "trigger error", code: 3, details: "test error" },
+        { throwOnError: false },
       );
 
       assertEquals(response.ok, false);
