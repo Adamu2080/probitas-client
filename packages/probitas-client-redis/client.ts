@@ -1,11 +1,11 @@
 import { Redis } from "ioredis";
 import { AbortError, TimeoutError } from "@probitas/client";
 import { getLogger } from "@probitas/logger";
-import type { CommonOptions } from "@probitas/client";
 import type {
   RedisArrayResult,
   RedisClient,
   RedisClientConfig,
+  RedisCommandOptions,
   RedisCommonResult,
   RedisConnectionConfig,
   RedisCountResult,
@@ -17,6 +17,38 @@ import type {
   RedisTransaction,
 } from "./types.ts";
 import { RedisCommandError, RedisConnectionError } from "./errors.ts";
+import type { RedisFailureError, RedisOperationError } from "./errors.ts";
+
+/**
+ * Check if an error is a failure error (operation not processed).
+ */
+function isFailureError(error: unknown): error is RedisFailureError {
+  return (
+    error instanceof AbortError ||
+    error instanceof TimeoutError ||
+    error instanceof RedisConnectionError
+  );
+}
+import {
+  createRedisArrayResultError,
+  createRedisArrayResultFailure,
+  createRedisArrayResultSuccess,
+  createRedisCommonResultError,
+  createRedisCommonResultFailure,
+  createRedisCommonResultSuccess,
+  createRedisCountResultError,
+  createRedisCountResultFailure,
+  createRedisCountResultSuccess,
+  createRedisGetResultError,
+  createRedisGetResultFailure,
+  createRedisGetResultSuccess,
+  createRedisHashResultError,
+  createRedisHashResultFailure,
+  createRedisHashResultSuccess,
+  createRedisSetResultError,
+  createRedisSetResultFailure,
+  createRedisSetResultSuccess,
+} from "./result.ts";
 
 type RedisInstance = InstanceType<typeof Redis>;
 
@@ -69,7 +101,7 @@ function formatValue(value: unknown): string {
  */
 async function withOptions<T>(
   promise: Promise<T>,
-  options: CommonOptions | undefined,
+  options: RedisCommandOptions | undefined,
   command: string,
 ): Promise<T> {
   if (!options?.timeout && !options?.signal) {
@@ -122,6 +154,31 @@ async function withOptions<T>(
 }
 
 /**
+ * Convert unknown error to a Redis error.
+ */
+function convertRedisError(
+  error: unknown,
+  command: string,
+): RedisOperationError | RedisFailureError {
+  if (error instanceof TimeoutError || error instanceof AbortError) {
+    return error;
+  }
+  if (error instanceof RedisConnectionError) {
+    return error;
+  }
+  if (error instanceof RedisCommandError) {
+    return error;
+  }
+  if (error instanceof Error) {
+    return new RedisCommandError(error.message, {
+      command,
+      cause: error,
+    });
+  }
+  return new RedisCommandError(String(error), { command });
+}
+
+/**
  * Create a new Redis client instance.
  *
  * The client provides comprehensive Redis data structure support including strings,
@@ -140,7 +197,9 @@ async function withOptions<T>(
  *
  * await client.set("key", "value");
  * const result = await client.get("key");
- * console.log(result.value);  // "value"
+ * if (result.ok) {
+ *   console.log(result.value);  // "value"
+ * }
  *
  * await client.close();
  * ```
@@ -187,7 +246,9 @@ async function withOptions<T>(
  * await client.hset("user:123", "email", "alice@example.com");
  *
  * const user = await client.hgetall("user:123");
- * console.log(user.value);  // { name: "Alice", email: "alice@example.com" }
+ * if (user.ok) {
+ *   console.log(user.value);  // { name: "Alice", email: "alice@example.com" }
+ * }
  *
  * await client.close();
  * ```
@@ -260,19 +321,6 @@ export async function createRedisClient(
   return new RedisClientImpl(config, redis);
 }
 
-function convertRedisError(error: unknown, command: string): never {
-  if (error instanceof TimeoutError || error instanceof AbortError) {
-    throw error;
-  }
-  if (error instanceof Error) {
-    throw new RedisCommandError(error.message, {
-      command,
-      cause: error,
-    });
-  }
-  throw new RedisCommandError(String(error), { command });
-}
-
 class RedisClientImpl implements RedisClient {
   readonly config: RedisClientConfig;
   readonly #redis: RedisInstance;
@@ -283,10 +331,29 @@ class RedisClientImpl implements RedisClient {
     this.#redis = redis;
   }
 
+  #shouldThrow(options?: RedisCommandOptions): boolean {
+    return options?.throwOnError ?? this.config.throwOnError ?? false;
+  }
+
+  #getClosedError(): RedisConnectionError | null {
+    if (this.#closed) {
+      return new RedisConnectionError("Client is closed");
+    }
+    return null;
+  }
+
   // Strings
 
-  async get(key: string, options?: CommonOptions): Promise<RedisGetResult> {
-    this.#ensureOpen();
+  async get(
+    key: string,
+    options?: RedisCommandOptions,
+  ): Promise<RedisGetResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisGetResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `GET ${key}`;
     logger.info("Redis command starting", {
@@ -308,14 +375,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis GET result", {
         value: formatValue(value),
       });
-      return {
-        kind: "redis:get",
-        processed: true,
-        ok: true,
-        error: null,
-        value,
-        duration,
-      };
+      return createRedisGetResultSuccess({ value, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -324,7 +384,12 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisGetResultFailure({ error: redisError, duration });
+      }
+      return createRedisGetResultError({ error: redisError, duration });
     }
   }
 
@@ -333,7 +398,12 @@ class RedisClientImpl implements RedisClient {
     value: string,
     options?: RedisSetOptions,
   ): Promise<RedisSetResult> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisSetResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `SET ${key}`;
     logger.info("Redis command starting", {
@@ -381,14 +451,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis SET result", {
         result,
       });
-      return {
-        kind: "redis:set",
-        processed: true,
-        ok: result === "OK",
-        error: null,
-        value: "OK",
-        duration,
-      };
+      return createRedisSetResultSuccess({ duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -397,12 +460,25 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisSetResultFailure({ error: redisError, duration });
+      }
+      return createRedisSetResultError({ error: redisError, duration });
     }
   }
 
-  async del(...keys: string[]): Promise<RedisCountResult> {
-    this.#ensureOpen();
+  async del(
+    keys: string[],
+    options?: RedisCommandOptions,
+  ): Promise<RedisCountResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `DEL ${keys.join(" ")}`;
     logger.info("Redis command starting", {
@@ -413,7 +489,11 @@ class RedisClientImpl implements RedisClient {
       keys,
     });
     try {
-      const count = await this.#redis.del(...keys);
+      const count = await withOptions(
+        this.#redis.del(...keys),
+        options,
+        command,
+      );
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "DEL",
@@ -424,14 +504,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis DEL result", {
         deletedCount: count,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
-        value: count,
-        duration,
-      };
+      return createRedisCountResultSuccess({ value: count, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -440,12 +513,25 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
-  async incr(key: string): Promise<RedisCountResult> {
-    this.#ensureOpen();
+  async incr(
+    key: string,
+    options?: RedisCommandOptions,
+  ): Promise<RedisCountResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `INCR ${key}`;
     logger.info("Redis command starting", {
@@ -456,7 +542,7 @@ class RedisClientImpl implements RedisClient {
       key,
     });
     try {
-      const value = await this.#redis.incr(key);
+      const value = await withOptions(this.#redis.incr(key), options, command);
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "INCR",
@@ -467,14 +553,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis INCR result", {
         value,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
-        value,
-        duration,
-      };
+      return createRedisCountResultSuccess({ value, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -483,12 +562,25 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
-  async decr(key: string): Promise<RedisCountResult> {
-    this.#ensureOpen();
+  async decr(
+    key: string,
+    options?: RedisCommandOptions,
+  ): Promise<RedisCountResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `DECR ${key}`;
     logger.info("Redis command starting", {
@@ -499,7 +591,7 @@ class RedisClientImpl implements RedisClient {
       key,
     });
     try {
-      const value = await this.#redis.decr(key);
+      const value = await withOptions(this.#redis.decr(key), options, command);
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "DECR",
@@ -510,14 +602,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis DECR result", {
         value,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
-        value,
-        duration,
-      };
+      return createRedisCountResultSuccess({ value, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -526,7 +611,12 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
@@ -535,9 +625,14 @@ class RedisClientImpl implements RedisClient {
   async hget(
     key: string,
     field: string,
-    options?: CommonOptions,
+    options?: RedisCommandOptions,
   ): Promise<RedisGetResult> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisGetResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `HGET ${key} ${field}`;
     logger.info("Redis command starting", {
@@ -566,14 +661,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis HGET result", {
         value: formatValue(value),
       });
-      return {
-        kind: "redis:get",
-        processed: true,
-        ok: true,
-        error: null,
-        value,
-        duration,
-      };
+      return createRedisGetResultSuccess({ value, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -583,7 +671,12 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisGetResultFailure({ error: redisError, duration });
+      }
+      return createRedisGetResultError({ error: redisError, duration });
     }
   }
 
@@ -591,9 +684,14 @@ class RedisClientImpl implements RedisClient {
     key: string,
     field: string,
     value: string,
-    options?: CommonOptions,
+    options?: RedisCommandOptions,
   ): Promise<RedisCountResult> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `HSET ${key} ${field}`;
     logger.info("Redis command starting", {
@@ -623,14 +721,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis HSET result", {
         count,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
-        value: count,
-        duration,
-      };
+      return createRedisCountResultSuccess({ value: count, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -640,15 +731,25 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
   async hgetall(
     key: string,
-    options?: CommonOptions,
+    options?: RedisCommandOptions,
   ): Promise<RedisHashResult> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisHashResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `HGETALL ${key}`;
     logger.info("Redis command starting", {
@@ -674,14 +775,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis HGETALL result", {
         value: formatValue(value),
       });
-      return {
-        kind: "redis:hash",
-        processed: true,
-        ok: true,
-        error: null,
-        value,
-        duration,
-      };
+      return createRedisHashResultSuccess({ value, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -690,12 +784,26 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisHashResultFailure({ error: redisError, duration });
+      }
+      return createRedisHashResultError({ error: redisError, duration });
     }
   }
 
-  async hdel(key: string, ...fields: string[]): Promise<RedisCountResult> {
-    this.#ensureOpen();
+  async hdel(
+    key: string,
+    fields: string[],
+    options?: RedisCommandOptions,
+  ): Promise<RedisCountResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `HDEL ${key} ${fields.join(" ")}`;
     logger.info("Redis command starting", {
@@ -708,7 +816,11 @@ class RedisClientImpl implements RedisClient {
       fields,
     });
     try {
-      const count = await this.#redis.hdel(key, ...fields);
+      const count = await withOptions(
+        this.#redis.hdel(key, ...fields),
+        options,
+        command,
+      );
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "HDEL",
@@ -720,14 +832,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis HDEL result", {
         deletedCount: count,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
-        value: count,
-        duration,
-      };
+      return createRedisCountResultSuccess({ value: count, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -737,14 +842,28 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
   // Lists
 
-  async lpush(key: string, ...values: string[]): Promise<RedisCountResult> {
-    this.#ensureOpen();
+  async lpush(
+    key: string,
+    values: string[],
+    options?: RedisCommandOptions,
+  ): Promise<RedisCountResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `LPUSH ${key}`;
     logger.info("Redis command starting", {
@@ -757,7 +876,11 @@ class RedisClientImpl implements RedisClient {
       values: values.map((v) => formatValue(v)),
     });
     try {
-      const count = await this.#redis.lpush(key, ...values);
+      const count = await withOptions(
+        this.#redis.lpush(key, ...values),
+        options,
+        command,
+      );
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "LPUSH",
@@ -769,14 +892,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis LPUSH result", {
         newLength: count,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
-        value: count,
-        duration,
-      };
+      return createRedisCountResultSuccess({ value: count, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -786,12 +902,26 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
-  async rpush(key: string, ...values: string[]): Promise<RedisCountResult> {
-    this.#ensureOpen();
+  async rpush(
+    key: string,
+    values: string[],
+    options?: RedisCommandOptions,
+  ): Promise<RedisCountResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `RPUSH ${key}`;
     logger.info("Redis command starting", {
@@ -804,7 +934,11 @@ class RedisClientImpl implements RedisClient {
       values: values.map((v) => formatValue(v)),
     });
     try {
-      const count = await this.#redis.rpush(key, ...values);
+      const count = await withOptions(
+        this.#redis.rpush(key, ...values),
+        options,
+        command,
+      );
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "RPUSH",
@@ -816,14 +950,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis RPUSH result", {
         newLength: count,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
-        value: count,
-        duration,
-      };
+      return createRedisCountResultSuccess({ value: count, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -833,12 +960,25 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
-  async lpop(key: string): Promise<RedisGetResult> {
-    this.#ensureOpen();
+  async lpop(
+    key: string,
+    options?: RedisCommandOptions,
+  ): Promise<RedisGetResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisGetResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `LPOP ${key}`;
     logger.info("Redis command starting", {
@@ -849,7 +989,7 @@ class RedisClientImpl implements RedisClient {
       key,
     });
     try {
-      const value = await this.#redis.lpop(key);
+      const value = await withOptions(this.#redis.lpop(key), options, command);
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "LPOP",
@@ -860,14 +1000,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis LPOP result", {
         value: formatValue(value),
       });
-      return {
-        kind: "redis:get",
-        processed: true,
-        ok: true,
-        error: null,
-        value,
-        duration,
-      };
+      return createRedisGetResultSuccess({ value, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -876,12 +1009,25 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisGetResultFailure({ error: redisError, duration });
+      }
+      return createRedisGetResultError({ error: redisError, duration });
     }
   }
 
-  async rpop(key: string): Promise<RedisGetResult> {
-    this.#ensureOpen();
+  async rpop(
+    key: string,
+    options?: RedisCommandOptions,
+  ): Promise<RedisGetResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisGetResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `RPOP ${key}`;
     logger.info("Redis command starting", {
@@ -892,7 +1038,7 @@ class RedisClientImpl implements RedisClient {
       key,
     });
     try {
-      const value = await this.#redis.rpop(key);
+      const value = await withOptions(this.#redis.rpop(key), options, command);
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "RPOP",
@@ -903,14 +1049,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis RPOP result", {
         value: formatValue(value),
       });
-      return {
-        kind: "redis:get",
-        processed: true,
-        ok: true,
-        error: null,
-        value,
-        duration,
-      };
+      return createRedisGetResultSuccess({ value, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -919,7 +1058,12 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisGetResultFailure({ error: redisError, duration });
+      }
+      return createRedisGetResultError({ error: redisError, duration });
     }
   }
 
@@ -927,9 +1071,14 @@ class RedisClientImpl implements RedisClient {
     key: string,
     start: number,
     stop: number,
-    options?: CommonOptions,
+    options?: RedisCommandOptions,
   ): Promise<RedisArrayResult> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisArrayResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `LRANGE ${key} ${start} ${stop}`;
     logger.info("Redis command starting", {
@@ -961,14 +1110,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis LRANGE result", {
         elements: value.map((v) => formatValue(v)),
       });
-      return {
-        kind: "redis:array",
-        processed: true,
-        ok: true,
-        error: null,
-        value,
-        duration,
-      };
+      return createRedisArrayResultSuccess({ value, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -979,12 +1121,25 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisArrayResultFailure({ error: redisError, duration });
+      }
+      return createRedisArrayResultError({ error: redisError, duration });
     }
   }
 
-  async llen(key: string): Promise<RedisCountResult> {
-    this.#ensureOpen();
+  async llen(
+    key: string,
+    options?: RedisCommandOptions,
+  ): Promise<RedisCountResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `LLEN ${key}`;
     logger.info("Redis command starting", {
@@ -995,7 +1150,7 @@ class RedisClientImpl implements RedisClient {
       key,
     });
     try {
-      const value = await this.#redis.llen(key);
+      const value = await withOptions(this.#redis.llen(key), options, command);
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "LLEN",
@@ -1006,14 +1161,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis LLEN result", {
         length: value,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
-        value,
-        duration,
-      };
+      return createRedisCountResultSuccess({ value, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -1022,14 +1170,28 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
   // Sets
 
-  async sadd(key: string, ...members: string[]): Promise<RedisCountResult> {
-    this.#ensureOpen();
+  async sadd(
+    key: string,
+    members: string[],
+    options?: RedisCommandOptions,
+  ): Promise<RedisCountResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `SADD ${key}`;
     logger.info("Redis command starting", {
@@ -1042,7 +1204,11 @@ class RedisClientImpl implements RedisClient {
       members,
     });
     try {
-      const count = await this.#redis.sadd(key, ...members);
+      const count = await withOptions(
+        this.#redis.sadd(key, ...members),
+        options,
+        command,
+      );
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "SADD",
@@ -1054,14 +1220,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis SADD result", {
         addedCount: count,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
-        value: count,
-        duration,
-      };
+      return createRedisCountResultSuccess({ value: count, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -1071,12 +1230,26 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
-  async srem(key: string, ...members: string[]): Promise<RedisCountResult> {
-    this.#ensureOpen();
+  async srem(
+    key: string,
+    members: string[],
+    options?: RedisCommandOptions,
+  ): Promise<RedisCountResult> {
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `SREM ${key}`;
     logger.info("Redis command starting", {
@@ -1089,7 +1262,11 @@ class RedisClientImpl implements RedisClient {
       members,
     });
     try {
-      const count = await this.#redis.srem(key, ...members);
+      const count = await withOptions(
+        this.#redis.srem(key, ...members),
+        options,
+        command,
+      );
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "SREM",
@@ -1101,14 +1278,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis SREM result", {
         removedCount: count,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
-        value: count,
-        duration,
-      };
+      return createRedisCountResultSuccess({ value: count, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -1118,15 +1288,25 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
   async smembers(
     key: string,
-    options?: CommonOptions,
+    options?: RedisCommandOptions,
   ): Promise<RedisArrayResult> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisArrayResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `SMEMBERS ${key}`;
     logger.info("Redis command starting", {
@@ -1152,14 +1332,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis SMEMBERS result", {
         members: value,
       });
-      return {
-        kind: "redis:array",
-        processed: true,
-        ok: true,
-        error: null,
-        value,
-        duration,
-      };
+      return createRedisArrayResultSuccess({ value, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -1168,15 +1341,29 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisArrayResultFailure({ error: redisError, duration });
+      }
+      return createRedisArrayResultError({ error: redisError, duration });
     }
   }
 
   async sismember(
     key: string,
     member: string,
+    options?: RedisCommandOptions,
   ): Promise<RedisCommonResult<boolean>> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCommonResultFailure<boolean>({
+        error: closedError,
+        duration: 0,
+      });
+    }
+
     const startTime = performance.now();
     const command = `SISMEMBER ${key} ${member}`;
     logger.info("Redis command starting", {
@@ -1189,7 +1376,11 @@ class RedisClientImpl implements RedisClient {
       member,
     });
     try {
-      const result = await this.#redis.sismember(key, member);
+      const result = await withOptions(
+        this.#redis.sismember(key, member),
+        options,
+        command,
+      );
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "SISMEMBER",
@@ -1201,14 +1392,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis SISMEMBER result", {
         isMember: result === 1,
       });
-      return {
-        kind: "redis:common",
-        processed: true,
-        ok: true,
-        error: null,
-        value: result === 1,
-        duration,
-      };
+      return createRedisCommonResultSuccess({ value: result === 1, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -1218,7 +1402,18 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCommonResultFailure<boolean>({
+          error: redisError,
+          duration,
+        });
+      }
+      return createRedisCommonResultError<boolean>({
+        error: redisError,
+        duration,
+      });
     }
   }
 
@@ -1226,9 +1421,15 @@ class RedisClientImpl implements RedisClient {
 
   async zadd(
     key: string,
-    ...entries: { score: number; member: string }[]
+    entries: { score: number; member: string }[],
+    options?: RedisCommandOptions,
   ): Promise<RedisCountResult> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `ZADD ${key}`;
     logger.info("Redis command starting", {
@@ -1245,7 +1446,11 @@ class RedisClientImpl implements RedisClient {
       for (const entry of entries) {
         args.push(entry.score, entry.member);
       }
-      const count = await this.#redis.zadd(key, ...args);
+      const count = await withOptions(
+        this.#redis.zadd(key, ...args),
+        options,
+        command,
+      );
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "ZADD",
@@ -1257,14 +1462,10 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis ZADD result", {
         addedCount: count,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
+      return createRedisCountResultSuccess({
         value: count as number,
         duration,
-      };
+      });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -1274,7 +1475,12 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
@@ -1282,9 +1488,14 @@ class RedisClientImpl implements RedisClient {
     key: string,
     start: number,
     stop: number,
-    options?: CommonOptions,
+    options?: RedisCommandOptions,
   ): Promise<RedisArrayResult> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisArrayResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `ZRANGE ${key} ${start} ${stop}`;
     logger.info("Redis command starting", {
@@ -1316,14 +1527,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis ZRANGE result", {
         members: value,
       });
-      return {
-        kind: "redis:array",
-        processed: true,
-        ok: true,
-        error: null,
-        value,
-        duration,
-      };
+      return createRedisArrayResultSuccess({ value, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -1334,15 +1538,29 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisArrayResultFailure({ error: redisError, duration });
+      }
+      return createRedisArrayResultError({ error: redisError, duration });
     }
   }
 
   async zscore(
     key: string,
     member: string,
+    options?: RedisCommandOptions,
   ): Promise<RedisCommonResult<number | null>> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCommonResultFailure<number | null>({
+        error: closedError,
+        duration: 0,
+      });
+    }
+
     const startTime = performance.now();
     const command = `ZSCORE ${key} ${member}`;
     logger.info("Redis command starting", {
@@ -1355,7 +1573,11 @@ class RedisClientImpl implements RedisClient {
       member,
     });
     try {
-      const value = await this.#redis.zscore(key, member);
+      const value = await withOptions(
+        this.#redis.zscore(key, member),
+        options,
+        command,
+      );
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "ZSCORE",
@@ -1367,14 +1589,10 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis ZSCORE result", {
         score: value !== null ? parseFloat(value) : null,
       });
-      return {
-        kind: "redis:common",
-        processed: true,
-        ok: true,
-        error: null,
+      return createRedisCommonResultSuccess({
         value: value !== null ? parseFloat(value) : null,
         duration,
-      };
+      });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -1384,7 +1602,18 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCommonResultFailure<number | null>({
+          error: redisError,
+          duration,
+        });
+      }
+      return createRedisCommonResultError<number | null>({
+        error: redisError,
+        duration,
+      });
     }
   }
 
@@ -1393,8 +1622,14 @@ class RedisClientImpl implements RedisClient {
   async publish(
     channel: string,
     message: string,
+    options?: RedisCommandOptions,
   ): Promise<RedisCountResult> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCountResultFailure({ error: closedError, duration: 0 });
+    }
+
     const startTime = performance.now();
     const command = `PUBLISH ${channel}`;
     logger.info("Redis command starting", {
@@ -1406,7 +1641,11 @@ class RedisClientImpl implements RedisClient {
       message: formatValue(message),
     });
     try {
-      const count = await this.#redis.publish(channel, message);
+      const count = await withOptions(
+        this.#redis.publish(channel, message),
+        options,
+        command,
+      );
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: "PUBLISH",
@@ -1417,14 +1656,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis PUBLISH result", {
         subscriberCount: count,
       });
-      return {
-        kind: "redis:count",
-        processed: true,
-        ok: true,
-        error: null,
-        value: count,
-        duration,
-      };
+      return createRedisCountResultSuccess({ value: count, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -1433,12 +1665,21 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCountResultFailure({ error: redisError, duration });
+      }
+      return createRedisCountResultError({ error: redisError, duration });
     }
   }
 
   async *subscribe(channel: string): AsyncIterable<RedisMessage> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      throw closedError;
+    }
+
     logger.debug("Redis subscribe starting", {
       command: "SUBSCRIBE",
       channel,
@@ -1537,20 +1778,34 @@ class RedisClientImpl implements RedisClient {
   // Transaction
 
   multi(): RedisTransaction {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      throw closedError;
+    }
+
     logger.debug("Redis transaction starting", {
       command: "MULTI",
     });
-    return new RedisTransactionImpl(this.#redis);
+    return new RedisTransactionImpl(this.#redis, this.config);
   }
 
   // Raw command
 
-  async command<T = unknown>(
+  // deno-lint-ignore no-explicit-any
+  async command<T = any>(
     cmd: string,
-    ...args: unknown[]
+    args: unknown[],
+    options?: RedisCommandOptions,
   ): Promise<RedisCommonResult<T>> {
-    this.#ensureOpen();
+    const closedError = this.#getClosedError();
+    if (closedError) {
+      if (this.#shouldThrow(options)) throw closedError;
+      return createRedisCommonResultFailure<T>({
+        error: closedError,
+        duration: 0,
+      });
+    }
+
     const startTime = performance.now();
     const command = `${cmd} ${args.join(" ")}`;
     logger.info("Redis command starting", {
@@ -1562,8 +1817,15 @@ class RedisClientImpl implements RedisClient {
       args: args.map((arg) => formatValue(arg)),
     });
     try {
-      // deno-lint-ignore no-explicit-any
-      const value = await (this.#redis as any).call(cmd, ...args);
+      // Using .call() for dynamic command execution (not in ioredis public types)
+      const redis = this.#redis as RedisInstance & {
+        call(cmd: string, ...args: unknown[]): Promise<unknown>;
+      };
+      const value = await withOptions(
+        redis.call(cmd, ...args),
+        options,
+        command,
+      );
       const duration = performance.now() - startTime;
       logger.info("Redis command succeeded", {
         command: cmd,
@@ -1574,14 +1836,7 @@ class RedisClientImpl implements RedisClient {
       logger.trace("Redis command result", {
         value: formatValue(value),
       });
-      return {
-        kind: "redis:common",
-        processed: true,
-        ok: true,
-        error: null,
-        value: value as T,
-        duration,
-      };
+      return createRedisCommonResultSuccess<T>({ value: value as T, duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis command failed", {
@@ -1590,7 +1845,15 @@ class RedisClientImpl implements RedisClient {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, command);
+      const redisError = convertRedisError(error, command);
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisCommonResultFailure<T>({
+          error: redisError,
+          duration,
+        });
+      }
+      return createRedisCommonResultError<T>({ error: redisError, duration });
     }
   }
 
@@ -1606,21 +1869,21 @@ class RedisClientImpl implements RedisClient {
   [Symbol.asyncDispose](): Promise<void> {
     return this.close();
   }
-
-  #ensureOpen(): void {
-    if (this.#closed) {
-      throw new RedisCommandError("Client is closed", { command: "" });
-    }
-  }
 }
 
 class RedisTransactionImpl implements RedisTransaction {
   // deno-lint-ignore no-explicit-any
   readonly #pipeline: any;
+  readonly #config: RedisClientConfig;
   #discarded = false;
 
-  constructor(redis: RedisInstance) {
+  constructor(redis: RedisInstance, config: RedisClientConfig) {
     this.#pipeline = redis.multi();
+    this.#config = config;
+  }
+
+  #shouldThrow(options?: RedisCommandOptions): boolean {
+    return options?.throwOnError ?? this.#config.throwOnError ?? false;
   }
 
   get(key: string): this {
@@ -1747,14 +2010,18 @@ class RedisTransactionImpl implements RedisTransaction {
     return this;
   }
 
-  async exec(): Promise<RedisArrayResult<unknown>> {
+  async exec(
+    options?: RedisCommandOptions,
+  ): Promise<RedisArrayResult<unknown>> {
     if (this.#discarded) {
+      const error = new RedisCommandError("Transaction was discarded", {
+        command: "EXEC",
+      });
       logger.error("Redis transaction exec on discarded transaction", {
         command: "EXEC",
       });
-      throw new RedisCommandError("Transaction was discarded", {
-        command: "EXEC",
-      });
+      if (this.#shouldThrow(options)) throw error;
+      return createRedisArrayResultError<unknown>({ error, duration: 0 });
     }
 
     logger.debug("Redis transaction executing", {
@@ -1776,14 +2043,10 @@ class RedisTransactionImpl implements RedisTransaction {
         commandCount: values.length,
         duration: `${duration.toFixed(2)}ms`,
       });
-      return {
-        kind: "redis:array",
-        processed: true,
-        ok: true,
-        error: null,
+      return createRedisArrayResultSuccess<unknown>({
         value: values,
         duration,
-      };
+      });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.error("Redis transaction failed", {
@@ -1791,7 +2054,18 @@ class RedisTransactionImpl implements RedisTransaction {
         duration: `${duration.toFixed(2)}ms`,
         error: error instanceof Error ? error.message : String(error),
       });
-      convertRedisError(error, "EXEC");
+      const redisError = convertRedisError(error, "EXEC");
+      if (this.#shouldThrow(options)) throw redisError;
+      if (isFailureError(redisError)) {
+        return createRedisArrayResultFailure<unknown>({
+          error: redisError,
+          duration,
+        });
+      }
+      return createRedisArrayResultError<unknown>({
+        error: redisError,
+        duration,
+      });
     }
   }
 

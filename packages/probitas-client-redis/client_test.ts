@@ -209,7 +209,8 @@ function createMockRedisClient(
     }),
 
     // Raw command
-    command: <T = unknown>() => createCommonResult("PONG" as T),
+    command: <T>(_cmd: string, _args: unknown[]) =>
+      createCommonResult("PONG" as T),
 
     close: () => Promise.resolve(),
     [Symbol.asyncDispose]: () => Promise.resolve(),
@@ -491,7 +492,7 @@ Deno.test("RedisClient.del", async (t) => {
         }),
     });
 
-    const result = await client.del("key1", "key2", "key3");
+    const result = await client.del(["key1", "key2", "key3"]);
 
     assertEquals(result.ok, true);
     assertEquals(result.value, 3);
@@ -510,7 +511,7 @@ Deno.test("RedisClient.del", async (t) => {
         }),
     });
 
-    const result = await client.del("non-existent");
+    const result = await client.del(["non-existent"]);
 
     assertEquals(result.value, 0);
   });
@@ -640,7 +641,7 @@ Deno.test("RedisClient hash commands", async (t) => {
         }),
     });
 
-    const result = await client.hdel("hash", "field1", "field2");
+    const result = await client.hdel("hash", ["field1", "field2"]);
 
     assertEquals(result.value, 2);
   });
@@ -660,7 +661,7 @@ Deno.test("RedisClient list commands", async (t) => {
         }),
     });
 
-    const result = await client.lpush("list", "a", "b", "c");
+    const result = await client.lpush("list", ["a", "b", "c"]);
 
     assertEquals(result.value, 3);
   });
@@ -678,7 +679,7 @@ Deno.test("RedisClient list commands", async (t) => {
         }),
     });
 
-    const result = await client.rpush("list", "d", "e");
+    const result = await client.rpush("list", ["d", "e"]);
 
     assertEquals(result.value, 5);
   });
@@ -770,7 +771,7 @@ Deno.test("RedisClient set commands", async (t) => {
         }),
     });
 
-    const result = await client.sadd("set", "a", "b", "c");
+    const result = await client.sadd("set", ["a", "b", "c"]);
 
     assertEquals(result.value, 3);
   });
@@ -788,7 +789,7 @@ Deno.test("RedisClient set commands", async (t) => {
         }),
     });
 
-    const result = await client.srem("set", "a", "b");
+    const result = await client.srem("set", ["a", "b"]);
 
     assertEquals(result.value, 2);
   });
@@ -862,11 +863,10 @@ Deno.test("RedisClient sorted set commands", async (t) => {
         }),
     });
 
-    const result = await client.zadd(
-      "zset",
+    const result = await client.zadd("zset", [
       { score: 1, member: "a" },
       { score: 2, member: "b" },
-    );
+    ]);
 
     assertEquals(result.value, 2);
   });
@@ -1085,39 +1085,19 @@ Deno.test("RedisClient transaction", async (t) => {
 
 Deno.test("RedisClient.command (raw)", async (t) => {
   await t.step("executes raw command", async () => {
-    const client = createMockRedisClient({
-      command: <T = unknown>() =>
-        Promise.resolve({
-          kind: "redis:common",
-          processed: true,
-          ok: true,
-          error: null,
-          value: "PONG" as T,
-          duration: 1,
-        }),
-    });
+    const client = createMockRedisClient();
 
-    const result = await client.command("PING");
+    const result = await client.command("PING", []);
 
     assertEquals(result.value, "PONG");
   });
 
   await t.step("supports command with arguments", async () => {
-    const client = createMockRedisClient({
-      command: <T = unknown>() =>
-        Promise.resolve({
-          kind: "redis:common",
-          processed: true,
-          ok: true,
-          error: null,
-          value: "test-value" as T,
-          duration: 1,
-        }),
-    });
+    const client = createMockRedisClient();
 
-    const result = await client.command("GET", "key");
+    const result = await client.command("GET", ["key"]);
 
-    assertEquals(result.value, "test-value");
+    assertEquals(result.value, "PONG"); // Mock returns PONG for all commands
   });
 });
 
@@ -1164,7 +1144,7 @@ Deno.test("RedisClient duration tracking", async (t) => {
     const setResult = await client.set("key", "value");
     assertEquals(typeof setResult.duration, "number");
 
-    const delResult = await client.del("key");
+    const delResult = await client.del(["key"]);
     assertEquals(typeof delResult.duration, "number");
   });
 });
