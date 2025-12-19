@@ -225,7 +225,7 @@ interface MongoUpdateResultBase extends ClientResult {
   readonly kind: "mongo:update";
   readonly matchedCount: number | null;
   readonly modifiedCount: number | null;
-  readonly upsertedId?: string | null;
+  readonly upsertedId: string | null;
 }
 
 /**
@@ -237,7 +237,7 @@ export interface MongoUpdateResultSuccess extends MongoUpdateResultBase {
   readonly error: null;
   readonly matchedCount: number;
   readonly modifiedCount: number;
-  readonly upsertedId?: string;
+  readonly upsertedId: string | null;
 }
 
 /**
@@ -390,398 +390,497 @@ export type MongoResult<T = any> =
   | MongoCountResult;
 
 // ============================================================================
-// MongoFindResult Factory Functions
+// MongoFindResult Implementation Classes
 // ============================================================================
 
 /**
- * Create a successful find result.
+ * Implementation class for MongoFindResultSuccess.
+ * @internal
  */
-export function createMongoFindResultSuccess<T>(params: {
-  docs: readonly T[];
-  duration: number;
-}): MongoFindResultSuccess<T> {
-  return {
-    kind: "mongo:find",
-    processed: true,
-    ok: true,
-    error: null,
-    docs: params.docs,
-    duration: params.duration,
-  };
+export class MongoFindResultSuccessImpl<T = Document>
+  implements MongoFindResultSuccess<T> {
+  readonly kind = "mongo:find" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly docs: readonly T[];
+  readonly duration: number;
+
+  constructor(params: {
+    docs: readonly T[];
+    duration: number;
+  }) {
+    this.docs = params.docs;
+    this.duration = params.duration;
+  }
 }
 
 /**
- * Create an error find result.
+ * Implementation class for MongoFindResultError.
+ * @internal
  */
-export function createMongoFindResultError<T>(params: {
-  error: MongoError;
-  duration: number;
-}): MongoFindResultError<T> {
-  return {
-    kind: "mongo:find",
-    processed: true,
-    ok: false,
-    error: params.error,
-    docs: [],
-    duration: params.duration,
-  };
+export class MongoFindResultErrorImpl<T = Document>
+  implements MongoFindResultError<T> {
+  readonly kind = "mongo:find" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: MongoError;
+  readonly docs: readonly T[] = [];
+  readonly duration: number;
+
+  constructor(params: {
+    error: MongoError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
 }
 
 /**
- * Create a failure find result.
+ * Implementation class for MongoFindResultFailure.
+ * @internal
  */
-export function createMongoFindResultFailure<T>(params: {
-  error: MongoFailureError;
-  duration: number;
-}): MongoFindResultFailure<T> {
-  return {
-    kind: "mongo:find",
-    processed: false,
-    ok: false,
-    error: params.error,
-    docs: null,
-    duration: params.duration,
-  };
-}
+export class MongoFindResultFailureImpl<T = Document>
+  implements MongoFindResultFailure<T> {
+  readonly kind = "mongo:find" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: MongoFailureError;
+  readonly docs = null;
+  readonly duration: number;
 
-// ============================================================================
-// MongoFindOneResult Factory Functions
-// ============================================================================
-
-/**
- * Create a successful findOne result.
- */
-export function createMongoFindOneResultSuccess<T>(params: {
-  doc: T | null;
-  duration: number;
-}): MongoFindOneResultSuccess<T> {
-  return {
-    kind: "mongo:find-one",
-    processed: true,
-    ok: true,
-    error: null,
-    doc: params.doc,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create an error findOne result.
- */
-export function createMongoFindOneResultError<T>(params: {
-  error: MongoError;
-  duration: number;
-}): MongoFindOneResultError<T> {
-  return {
-    kind: "mongo:find-one",
-    processed: true,
-    ok: false,
-    error: params.error,
-    doc: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a failure findOne result.
- */
-export function createMongoFindOneResultFailure<T>(params: {
-  error: MongoFailureError;
-  duration: number;
-}): MongoFindOneResultFailure<T> {
-  return {
-    kind: "mongo:find-one",
-    processed: false,
-    ok: false,
-    error: params.error,
-    doc: null,
-    duration: params.duration,
-  };
+  constructor(params: {
+    error: MongoFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
 }
 
 // ============================================================================
-// MongoInsertOneResult Factory Functions
+// MongoFindOneResult Implementation Classes
 // ============================================================================
 
 /**
- * Create a successful insertOne result.
+ * Implementation class for MongoFindOneResultSuccess.
+ * @internal
  */
-export function createMongoInsertOneResultSuccess(params: {
-  insertedId: string;
-  duration: number;
-}): MongoInsertOneResultSuccess {
-  return {
-    kind: "mongo:insert-one",
-    processed: true,
-    ok: true,
-    error: null,
-    insertedId: params.insertedId,
-    duration: params.duration,
-  };
+export class MongoFindOneResultSuccessImpl<T = Document>
+  implements MongoFindOneResultSuccess<T> {
+  readonly kind = "mongo:find-one" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly doc: T | null;
+  readonly duration: number;
+
+  constructor(params: {
+    doc: T | null;
+    duration: number;
+  }) {
+    this.doc = params.doc;
+    this.duration = params.duration;
+  }
 }
 
 /**
- * Create an error insertOne result.
+ * Implementation class for MongoFindOneResultError.
+ * @internal
  */
-export function createMongoInsertOneResultError(params: {
-  error: MongoError;
-  duration: number;
-}): MongoInsertOneResultError {
-  return {
-    kind: "mongo:insert-one",
-    processed: true,
-    ok: false,
-    error: params.error,
-    insertedId: null,
-    duration: params.duration,
-  };
+export class MongoFindOneResultErrorImpl<T = Document>
+  implements MongoFindOneResultError<T> {
+  readonly kind = "mongo:find-one" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: MongoError;
+  readonly doc = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: MongoError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
 }
 
 /**
- * Create a failure insertOne result.
+ * Implementation class for MongoFindOneResultFailure.
+ * @internal
  */
-export function createMongoInsertOneResultFailure(params: {
-  error: MongoFailureError;
-  duration: number;
-}): MongoInsertOneResultFailure {
-  return {
-    kind: "mongo:insert-one",
-    processed: false,
-    ok: false,
-    error: params.error,
-    insertedId: null,
-    duration: params.duration,
-  };
-}
+export class MongoFindOneResultFailureImpl<T = Document>
+  implements MongoFindOneResultFailure<T> {
+  readonly kind = "mongo:find-one" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: MongoFailureError;
+  readonly doc = null;
+  readonly duration: number;
 
-// ============================================================================
-// MongoInsertManyResult Factory Functions
-// ============================================================================
-
-/**
- * Create a successful insertMany result.
- */
-export function createMongoInsertManyResultSuccess(params: {
-  insertedIds: readonly string[];
-  insertedCount: number;
-  duration: number;
-}): MongoInsertManyResultSuccess {
-  return {
-    kind: "mongo:insert-many",
-    processed: true,
-    ok: true,
-    error: null,
-    insertedIds: params.insertedIds,
-    insertedCount: params.insertedCount,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create an error insertMany result.
- */
-export function createMongoInsertManyResultError(params: {
-  error: MongoError;
-  duration: number;
-}): MongoInsertManyResultError {
-  return {
-    kind: "mongo:insert-many",
-    processed: true,
-    ok: false,
-    error: params.error,
-    insertedIds: null,
-    insertedCount: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a failure insertMany result.
- */
-export function createMongoInsertManyResultFailure(params: {
-  error: MongoFailureError;
-  duration: number;
-}): MongoInsertManyResultFailure {
-  return {
-    kind: "mongo:insert-many",
-    processed: false,
-    ok: false,
-    error: params.error,
-    insertedIds: null,
-    insertedCount: null,
-    duration: params.duration,
-  };
+  constructor(params: {
+    error: MongoFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
 }
 
 // ============================================================================
-// MongoUpdateResult Factory Functions
+// MongoInsertOneResult Implementation Classes
 // ============================================================================
 
 /**
- * Create a successful update result.
+ * Implementation class for MongoInsertOneResultSuccess.
+ * @internal
  */
-export function createMongoUpdateResultSuccess(params: {
-  matchedCount: number;
-  modifiedCount: number;
-  upsertedId?: string;
-  duration: number;
-}): MongoUpdateResultSuccess {
-  return {
-    kind: "mongo:update",
-    processed: true,
-    ok: true,
-    error: null,
-    matchedCount: params.matchedCount,
-    modifiedCount: params.modifiedCount,
-    upsertedId: params.upsertedId,
-    duration: params.duration,
-  };
+export class MongoInsertOneResultSuccessImpl
+  implements MongoInsertOneResultSuccess {
+  readonly kind = "mongo:insert-one" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly insertedId: string;
+  readonly duration: number;
+
+  constructor(params: {
+    insertedId: string;
+    duration: number;
+  }) {
+    this.insertedId = params.insertedId;
+    this.duration = params.duration;
+  }
 }
 
 /**
- * Create an error update result.
+ * Implementation class for MongoInsertOneResultError.
+ * @internal
  */
-export function createMongoUpdateResultError(params: {
-  error: MongoError;
-  duration: number;
-}): MongoUpdateResultError {
-  return {
-    kind: "mongo:update",
-    processed: true,
-    ok: false,
-    error: params.error,
-    matchedCount: null,
-    modifiedCount: null,
-    upsertedId: null,
-    duration: params.duration,
-  };
+export class MongoInsertOneResultErrorImpl
+  implements MongoInsertOneResultError {
+  readonly kind = "mongo:insert-one" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: MongoError;
+  readonly insertedId = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: MongoError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
 }
 
 /**
- * Create a failure update result.
+ * Implementation class for MongoInsertOneResultFailure.
+ * @internal
  */
-export function createMongoUpdateResultFailure(params: {
-  error: MongoFailureError;
-  duration: number;
-}): MongoUpdateResultFailure {
-  return {
-    kind: "mongo:update",
-    processed: false,
-    ok: false,
-    error: params.error,
-    matchedCount: null,
-    modifiedCount: null,
-    upsertedId: null,
-    duration: params.duration,
-  };
-}
+export class MongoInsertOneResultFailureImpl
+  implements MongoInsertOneResultFailure {
+  readonly kind = "mongo:insert-one" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: MongoFailureError;
+  readonly insertedId = null;
+  readonly duration: number;
 
-// ============================================================================
-// MongoDeleteResult Factory Functions
-// ============================================================================
-
-/**
- * Create a successful delete result.
- */
-export function createMongoDeleteResultSuccess(params: {
-  deletedCount: number;
-  duration: number;
-}): MongoDeleteResultSuccess {
-  return {
-    kind: "mongo:delete",
-    processed: true,
-    ok: true,
-    error: null,
-    deletedCount: params.deletedCount,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create an error delete result.
- */
-export function createMongoDeleteResultError(params: {
-  error: MongoError;
-  duration: number;
-}): MongoDeleteResultError {
-  return {
-    kind: "mongo:delete",
-    processed: true,
-    ok: false,
-    error: params.error,
-    deletedCount: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a failure delete result.
- */
-export function createMongoDeleteResultFailure(params: {
-  error: MongoFailureError;
-  duration: number;
-}): MongoDeleteResultFailure {
-  return {
-    kind: "mongo:delete",
-    processed: false,
-    ok: false,
-    error: params.error,
-    deletedCount: null,
-    duration: params.duration,
-  };
+  constructor(params: {
+    error: MongoFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
 }
 
 // ============================================================================
-// MongoCountResult Factory Functions
+// MongoInsertManyResult Implementation Classes
 // ============================================================================
 
 /**
- * Create a successful count result.
+ * Implementation class for MongoInsertManyResultSuccess.
+ * @internal
  */
-export function createMongoCountResultSuccess(params: {
-  count: number;
-  duration: number;
-}): MongoCountResultSuccess {
-  return {
-    kind: "mongo:count",
-    processed: true,
-    ok: true,
-    error: null,
-    count: params.count,
-    duration: params.duration,
-  };
+export class MongoInsertManyResultSuccessImpl
+  implements MongoInsertManyResultSuccess {
+  readonly kind = "mongo:insert-many" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly insertedIds: readonly string[];
+  readonly insertedCount: number;
+  readonly duration: number;
+
+  constructor(params: {
+    insertedIds: readonly string[];
+    insertedCount: number;
+    duration: number;
+  }) {
+    this.insertedIds = params.insertedIds;
+    this.insertedCount = params.insertedCount;
+    this.duration = params.duration;
+  }
 }
 
 /**
- * Create an error count result.
+ * Implementation class for MongoInsertManyResultError.
+ * @internal
  */
-export function createMongoCountResultError(params: {
-  error: MongoError;
-  duration: number;
-}): MongoCountResultError {
-  return {
-    kind: "mongo:count",
-    processed: true,
-    ok: false,
-    error: params.error,
-    count: null,
-    duration: params.duration,
-  };
+export class MongoInsertManyResultErrorImpl
+  implements MongoInsertManyResultError {
+  readonly kind = "mongo:insert-many" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: MongoError;
+  readonly insertedIds = null;
+  readonly insertedCount = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: MongoError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
 }
 
 /**
- * Create a failure count result.
+ * Implementation class for MongoInsertManyResultFailure.
+ * @internal
  */
-export function createMongoCountResultFailure(params: {
-  error: MongoFailureError;
-  duration: number;
-}): MongoCountResultFailure {
-  return {
-    kind: "mongo:count",
-    processed: false,
-    ok: false,
-    error: params.error,
-    count: null,
-    duration: params.duration,
-  };
+export class MongoInsertManyResultFailureImpl
+  implements MongoInsertManyResultFailure {
+  readonly kind = "mongo:insert-many" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: MongoFailureError;
+  readonly insertedIds = null;
+  readonly insertedCount = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: MongoFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+// ============================================================================
+// MongoUpdateResult Implementation Classes
+// ============================================================================
+
+/**
+ * Implementation class for MongoUpdateResultSuccess.
+ * @internal
+ */
+export class MongoUpdateResultSuccessImpl implements MongoUpdateResultSuccess {
+  readonly kind = "mongo:update" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly matchedCount: number;
+  readonly modifiedCount: number;
+  readonly upsertedId: string | null;
+  readonly duration: number;
+
+  constructor(params: {
+    matchedCount: number;
+    modifiedCount: number;
+    upsertedId: string | null;
+    duration: number;
+  }) {
+    this.matchedCount = params.matchedCount;
+    this.modifiedCount = params.modifiedCount;
+    this.upsertedId = params.upsertedId;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for MongoUpdateResultError.
+ * @internal
+ */
+export class MongoUpdateResultErrorImpl implements MongoUpdateResultError {
+  readonly kind = "mongo:update" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: MongoError;
+  readonly matchedCount = null;
+  readonly modifiedCount = null;
+  readonly upsertedId = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: MongoError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for MongoUpdateResultFailure.
+ * @internal
+ */
+export class MongoUpdateResultFailureImpl implements MongoUpdateResultFailure {
+  readonly kind = "mongo:update" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: MongoFailureError;
+  readonly matchedCount = null;
+  readonly modifiedCount = null;
+  readonly upsertedId = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: MongoFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+// ============================================================================
+// MongoDeleteResult Implementation Classes
+// ============================================================================
+
+/**
+ * Implementation class for MongoDeleteResultSuccess.
+ * @internal
+ */
+export class MongoDeleteResultSuccessImpl implements MongoDeleteResultSuccess {
+  readonly kind = "mongo:delete" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly deletedCount: number;
+  readonly duration: number;
+
+  constructor(params: {
+    deletedCount: number;
+    duration: number;
+  }) {
+    this.deletedCount = params.deletedCount;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for MongoDeleteResultError.
+ * @internal
+ */
+export class MongoDeleteResultErrorImpl implements MongoDeleteResultError {
+  readonly kind = "mongo:delete" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: MongoError;
+  readonly deletedCount = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: MongoError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for MongoDeleteResultFailure.
+ * @internal
+ */
+export class MongoDeleteResultFailureImpl implements MongoDeleteResultFailure {
+  readonly kind = "mongo:delete" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: MongoFailureError;
+  readonly deletedCount = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: MongoFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+// ============================================================================
+// MongoCountResult Implementation Classes
+// ============================================================================
+
+/**
+ * Implementation class for MongoCountResultSuccess.
+ * @internal
+ */
+export class MongoCountResultSuccessImpl implements MongoCountResultSuccess {
+  readonly kind = "mongo:count" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly count: number;
+  readonly duration: number;
+
+  constructor(params: {
+    count: number;
+    duration: number;
+  }) {
+    this.count = params.count;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for MongoCountResultError.
+ * @internal
+ */
+export class MongoCountResultErrorImpl implements MongoCountResultError {
+  readonly kind = "mongo:count" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: MongoError;
+  readonly count = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: MongoError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for MongoCountResultFailure.
+ * @internal
+ */
+export class MongoCountResultFailureImpl implements MongoCountResultFailure {
+  readonly kind = "mongo:count" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: MongoFailureError;
+  readonly count = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: MongoFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
 }
