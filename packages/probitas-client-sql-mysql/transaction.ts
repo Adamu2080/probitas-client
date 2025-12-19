@@ -1,12 +1,12 @@
 import type mysql from "mysql2/promise";
 import {
-  createSqlQueryResultError,
-  createSqlQueryResultFailure,
-  createSqlQueryResultSuccess,
   SqlConnectionError,
   type SqlIsolationLevel,
   type SqlQueryOptions,
   type SqlQueryResult,
+  SqlQueryResultErrorImpl,
+  SqlQueryResultFailureImpl,
+  SqlQueryResultSuccessImpl,
   type SqlTransaction,
   type SqlTransactionOptions,
 } from "@probitas/client-sql";
@@ -91,7 +91,7 @@ export class MySqlTransactionImpl implements MySqlTransaction {
       if (shouldThrow) {
         throw error;
       }
-      return createSqlQueryResultFailure<T>(error, 0);
+      return new SqlQueryResultFailureImpl<T>(error, 0);
     }
 
     const startTime = performance.now();
@@ -102,7 +102,7 @@ export class MySqlTransactionImpl implements MySqlTransaction {
 
       // Handle SELECT queries
       if (Array.isArray(rows)) {
-        return createSqlQueryResultSuccess<T>({
+        return new SqlQueryResultSuccessImpl<T>({
           rows: rows as unknown as T[],
           rowCount: rows.length,
           duration,
@@ -112,7 +112,7 @@ export class MySqlTransactionImpl implements MySqlTransaction {
       // Handle INSERT/UPDATE/DELETE queries (ResultSetHeader)
       // deno-lint-ignore no-explicit-any
       const resultHeader = rows as any;
-      return createSqlQueryResultSuccess<T>({
+      return new SqlQueryResultSuccessImpl<T>({
         rows: [],
         rowCount: resultHeader.affectedRows,
         duration,
@@ -134,10 +134,10 @@ export class MySqlTransactionImpl implements MySqlTransaction {
 
       // Return Failure for connection errors, Error for query errors
       if (sqlError instanceof SqlConnectionError) {
-        return createSqlQueryResultFailure<T>(sqlError, duration);
+        return new SqlQueryResultFailureImpl<T>(sqlError, duration);
       }
 
-      return createSqlQueryResultError<T>(sqlError, duration);
+      return new SqlQueryResultErrorImpl<T>(sqlError, duration);
     }
   }
 

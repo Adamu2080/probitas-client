@@ -25,7 +25,7 @@ export interface SqlErrorOptions extends ErrorOptions {
 export class SqlError extends ClientError {
   override readonly name: string = "SqlError";
   override readonly kind: SqlErrorKind;
-  readonly sqlState?: string;
+  readonly sqlState: string | null;
 
   constructor(
     message: string,
@@ -34,7 +34,7 @@ export class SqlError extends ClientError {
   ) {
     super(message, kind, options);
     this.kind = kind;
-    this.sqlState = options?.sqlState;
+    this.sqlState = options?.sqlState ?? null;
   }
 }
 

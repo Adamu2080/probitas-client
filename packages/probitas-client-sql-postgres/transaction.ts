@@ -1,11 +1,11 @@
 import type postgres from "postgres";
 import {
-  createSqlQueryResultError,
-  createSqlQueryResultFailure,
-  createSqlQueryResultSuccess,
   SqlConnectionError,
   type SqlQueryOptions,
   type SqlQueryResult,
+  SqlQueryResultErrorImpl,
+  SqlQueryResultFailureImpl,
+  SqlQueryResultSuccessImpl,
   type SqlTransaction,
 } from "@probitas/client-sql";
 import { mapPostgresError } from "./errors.ts";
@@ -65,7 +65,7 @@ export class PostgresTransaction implements SqlTransaction {
       const result = await this.#sql.unsafe<T[]>(sql, params as never[]);
       const duration = performance.now() - startTime;
 
-      return createSqlQueryResultSuccess<T>({
+      return new SqlQueryResultSuccessImpl<T>({
         rows: result as unknown as readonly T[],
         rowCount: result.count ?? result.length,
         duration,
@@ -83,10 +83,10 @@ export class PostgresTransaction implements SqlTransaction {
 
       // Return Failure for connection errors, Error for query errors
       if (sqlError instanceof SqlConnectionError) {
-        return createSqlQueryResultFailure<T>(sqlError, duration);
+        return new SqlQueryResultFailureImpl<T>(sqlError, duration);
       }
 
-      return createSqlQueryResultError<T>(sqlError, duration);
+      return new SqlQueryResultErrorImpl<T>(sqlError, duration);
     }
   }
 

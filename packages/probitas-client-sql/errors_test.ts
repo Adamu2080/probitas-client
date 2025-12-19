@@ -22,6 +22,11 @@ Deno.test("SqlError", async (t) => {
     assertEquals(error.message, "SQL error");
   });
 
+  await t.step("sqlState defaults to null", () => {
+    const error = new SqlError("SQL error", "query");
+    assertEquals(error.sqlState, null);
+  });
+
   await t.step("accepts sqlState", () => {
     const error = new SqlError("Unique violation", "constraint", {
       sqlState: "23505",

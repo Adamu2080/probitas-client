@@ -1,12 +1,12 @@
 import { type BindValue, Database } from "@db/sqlite";
 import { getLogger } from "@probitas/logger";
 import {
-  createSqlQueryResultError,
-  createSqlQueryResultFailure,
-  createSqlQueryResultSuccess,
   SqlConnectionError,
   type SqlQueryOptions,
   type SqlQueryResult,
+  SqlQueryResultErrorImpl,
+  SqlQueryResultFailureImpl,
+  SqlQueryResultSuccessImpl,
   type SqlTransaction,
   type SqlTransactionOptions,
 } from "@probitas/client-sql";
@@ -21,25 +21,6 @@ const logger = getLogger("probitas", "client", "sql", "sqlite");
 
 /** Internal type alias for bind parameters */
 type BindParams = BindValue[];
-
-/**
- * Format SQL for logging, truncating if necessary.
- */
-function formatSql(sql: string): string {
-  return sql.length > 1000 ? sql.slice(0, 1000) + "..." : sql;
-}
-
-/**
- * Format parameters for logging, truncating if necessary.
- */
-function formatParams(params: unknown): string {
-  try {
-    const str = JSON.stringify(params);
-    return str.length > 500 ? str.slice(0, 500) + "..." : str;
-  } catch {
-    return "<unserializable>";
-  }
-}
 
 /**
  * SQLite client interface.
@@ -246,7 +227,7 @@ class SqliteClientImpl implements SqliteClient {
       if (shouldThrow) {
         return Promise.reject(error);
       }
-      return Promise.resolve(createSqlQueryResultFailure<T>(error, 0));
+      return Promise.resolve(new SqlQueryResultFailureImpl<T>(error, 0));
     }
 
     const startTime = performance.now();
@@ -258,8 +239,8 @@ class SqliteClientImpl implements SqliteClient {
     });
 
     logger.trace("SQLite query details", {
-      sql: formatSql(sql),
-      params: params ? formatParams(params) : undefined,
+      sql: sql,
+      params: params ? params : undefined,
     });
 
     try {
@@ -290,12 +271,12 @@ class SqliteClientImpl implements SqliteClient {
           if (rows.length > 0) {
             const sample = rows.slice(0, 1);
             logger.trace("SQLite query row sample", {
-              rows: formatParams(sample),
+              rows: sample,
             });
           }
 
           return Promise.resolve(
-            createSqlQueryResultSuccess<T>({
+            new SqlQueryResultSuccessImpl<T>({
               rows: rows,
               rowCount: rows.length,
               duration,
@@ -326,7 +307,7 @@ class SqliteClientImpl implements SqliteClient {
           });
 
           return Promise.resolve(
-            createSqlQueryResultSuccess<T>({
+            new SqlQueryResultSuccessImpl<T>({
               rows: [],
               rowCount: changes,
               duration,
@@ -357,11 +338,13 @@ class SqliteClientImpl implements SqliteClient {
       // Return Failure for connection errors, Error for query errors
       if (sqlError instanceof SqlConnectionError) {
         return Promise.resolve(
-          createSqlQueryResultFailure<T>(sqlError, duration),
+          new SqlQueryResultFailureImpl<T>(sqlError, duration),
         );
       }
 
-      return Promise.resolve(createSqlQueryResultError<T>(sqlError, duration));
+      return Promise.resolve(
+        new SqlQueryResultErrorImpl<T>(sqlError, duration),
+      );
     }
   }
 

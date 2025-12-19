@@ -2,13 +2,13 @@ import postgres from "postgres";
 import { ConnectionError } from "@probitas/client";
 import { getLogger } from "@probitas/logger";
 import {
-  createSqlQueryResultError,
-  createSqlQueryResultFailure,
-  createSqlQueryResultSuccess,
   SqlConnectionError,
   type SqlIsolationLevel,
   type SqlQueryOptions,
   type SqlQueryResult,
+  SqlQueryResultErrorImpl,
+  SqlQueryResultFailureImpl,
+  SqlQueryResultSuccessImpl,
   type SqlTransaction,
   type SqlTransactionOptions,
 } from "@probitas/client-sql";
@@ -21,25 +21,6 @@ import type {
 } from "./types.ts";
 
 const logger = getLogger("probitas", "client", "sql", "postgres");
-
-/**
- * Format SQL for logging, truncating if necessary.
- */
-function formatSql(sql: string): string {
-  return sql.length > 1000 ? sql.slice(0, 1000) + "..." : sql;
-}
-
-/**
- * Format parameters for logging, truncating if necessary.
- */
-function formatParams(params: unknown): string {
-  try {
-    const str = JSON.stringify(params);
-    return str.length > 500 ? str.slice(0, 500) + "..." : str;
-  } catch {
-    return "<unserializable>";
-  }
-}
 
 /**
  * PostgreSQL client interface.
@@ -193,7 +174,7 @@ class PostgresClientImpl implements PostgresClient {
       if (shouldThrow) {
         throw error;
       }
-      return createSqlQueryResultFailure<T>(error, 0);
+      return new SqlQueryResultFailureImpl<T>(error, 0);
     }
 
     const startTime = performance.now();
@@ -204,10 +185,7 @@ class PostgresClientImpl implements PostgresClient {
       paramCount: params?.length ?? 0,
     });
 
-    logger.trace("PostgreSQL query details", {
-      sql: formatSql(sql),
-      params: params ? formatParams(params) : undefined,
-    });
+    logger.trace("PostgreSQL query details", { sql, params });
 
     try {
       const result = await this.#sql.unsafe<T[]>(
@@ -223,12 +201,10 @@ class PostgresClientImpl implements PostgresClient {
 
       if (result.length > 0) {
         const sample = result.slice(0, 1);
-        logger.trace("PostgreSQL query row sample", {
-          rows: formatParams(sample),
-        });
+        logger.trace("PostgreSQL query row sample", { rows: sample });
       }
 
-      return createSqlQueryResultSuccess<T>({
+      return new SqlQueryResultSuccessImpl<T>({
         rows: result as unknown as readonly T[],
         rowCount: result.count ?? result.length,
         duration,
@@ -252,10 +228,10 @@ class PostgresClientImpl implements PostgresClient {
 
       // Return Failure for connection errors, Error for query errors
       if (sqlError instanceof SqlConnectionError) {
-        return createSqlQueryResultFailure<T>(sqlError, duration);
+        return new SqlQueryResultFailureImpl<T>(sqlError, duration);
       }
 
-      return createSqlQueryResultError<T>(sqlError, duration);
+      return new SqlQueryResultErrorImpl<T>(sqlError, duration);
     }
   }
 
@@ -384,9 +360,7 @@ class PostgresClientImpl implements PostgresClient {
       sql: sqlPreview,
     });
 
-    logger.trace("PostgreSQL COPY TO details", {
-      sql: formatSql(query),
-    });
+    logger.trace("PostgreSQL COPY TO details", { sql: query });
 
     const startTime = performance.now();
     const reserved = await this.#sql.reserve();
@@ -399,9 +373,7 @@ class PostgresClientImpl implements PostgresClient {
       for (const row of result) {
         rowCount++;
         if (!rowSampleLogged && rowCount === 1) {
-          logger.trace("PostgreSQL COPY TO row sample", {
-            row: formatParams(Object.values(row)),
-          });
+          logger.trace("PostgreSQL COPY TO row sample", { row });
           rowSampleLogged = true;
         }
         yield Object.values(row);

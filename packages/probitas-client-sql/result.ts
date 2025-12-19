@@ -189,8 +189,9 @@ export interface SqlQueryResultSuccessParams<T = any> {
 
 /**
  * Implementation of SqlQueryResultSuccess.
+ * @internal
  */
-class SqlQueryResultSuccessImpl<T> implements SqlQueryResultSuccess<T> {
+export class SqlQueryResultSuccessImpl<T> implements SqlQueryResultSuccess<T> {
   readonly kind = "sql" as const;
   readonly processed = true as const;
   readonly ok = true as const;
@@ -228,8 +229,9 @@ class SqlQueryResultSuccessImpl<T> implements SqlQueryResultSuccess<T> {
 
 /**
  * Implementation of SqlQueryResultError.
+ * @internal
  */
-class SqlQueryResultErrorImpl<T> implements SqlQueryResultError<T> {
+export class SqlQueryResultErrorImpl<T> implements SqlQueryResultError<T> {
   readonly kind = "sql" as const;
   readonly processed = true as const;
   readonly ok = false as const;
@@ -256,8 +258,9 @@ class SqlQueryResultErrorImpl<T> implements SqlQueryResultError<T> {
 
 /**
  * Implementation of SqlQueryResultFailure.
+ * @internal
  */
-class SqlQueryResultFailureImpl<T> implements SqlQueryResultFailure<T> {
+export class SqlQueryResultFailureImpl<T> implements SqlQueryResultFailure<T> {
   readonly kind = "sql" as const;
   readonly processed = false as const;
   readonly ok = false as const;
@@ -280,33 +283,4 @@ class SqlQueryResultFailureImpl<T> implements SqlQueryResultFailure<T> {
   as<U>(_ctor: new (row: T) => U): U[] {
     return [];
   }
-}
-
-/**
- * Create a successful SQL query result.
- */
-export function createSqlQueryResultSuccess<T>(
-  params: SqlQueryResultSuccessParams<T>,
-): SqlQueryResultSuccess<T> {
-  return new SqlQueryResultSuccessImpl(params);
-}
-
-/**
- * Create a SQL query result for query errors (syntax, constraint, etc.).
- */
-export function createSqlQueryResultError<T>(
-  error: SqlError,
-  duration: number,
-): SqlQueryResultError<T> {
-  return new SqlQueryResultErrorImpl(error, duration);
-}
-
-/**
- * Create a SQL query result for connection failures.
- */
-export function createSqlQueryResultFailure<T>(
-  error: SqlFailureError,
-  duration: number,
-): SqlQueryResultFailure<T> {
-  return new SqlQueryResultFailureImpl(error, duration);
 }

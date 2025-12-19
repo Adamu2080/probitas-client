@@ -1,12 +1,12 @@
 import type { BindValue, Database } from "@db/sqlite";
 import {
-  createSqlQueryResultError,
-  createSqlQueryResultFailure,
-  createSqlQueryResultSuccess,
   SqlConnectionError,
   type SqlIsolationLevel,
   type SqlQueryOptions,
   type SqlQueryResult,
+  SqlQueryResultErrorImpl,
+  SqlQueryResultFailureImpl,
+  SqlQueryResultSuccessImpl,
   type SqlTransaction,
   type SqlTransactionOptions,
 } from "@probitas/client-sql";
@@ -103,7 +103,7 @@ export class SqliteTransactionImpl implements SqlTransaction {
       if (shouldThrow) {
         return Promise.reject(error);
       }
-      return Promise.resolve(createSqlQueryResultFailure<T>(error, 0));
+      return Promise.resolve(new SqlQueryResultFailureImpl<T>(error, 0));
     }
 
     const startTime = performance.now();
@@ -129,7 +129,7 @@ export class SqliteTransactionImpl implements SqlTransaction {
           const duration = performance.now() - startTime;
 
           return Promise.resolve(
-            createSqlQueryResultSuccess<T>({
+            new SqlQueryResultSuccessImpl<T>({
               rows: rows,
               rowCount: rows.length,
               duration,
@@ -154,7 +154,7 @@ export class SqliteTransactionImpl implements SqlTransaction {
           const lastInsertRowId = this.#db.lastInsertRowId;
 
           return Promise.resolve(
-            createSqlQueryResultSuccess<T>({
+            new SqlQueryResultSuccessImpl<T>({
               rows: [],
               rowCount: changes,
               duration,
@@ -179,11 +179,13 @@ export class SqliteTransactionImpl implements SqlTransaction {
       // Return Failure for connection errors, Error for query errors
       if (sqlError instanceof SqlConnectionError) {
         return Promise.resolve(
-          createSqlQueryResultFailure<T>(sqlError, duration),
+          new SqlQueryResultFailureImpl<T>(sqlError, duration),
         );
       }
 
-      return Promise.resolve(createSqlQueryResultError<T>(sqlError, duration));
+      return Promise.resolve(
+        new SqlQueryResultErrorImpl<T>(sqlError, duration),
+      );
     }
   }
 

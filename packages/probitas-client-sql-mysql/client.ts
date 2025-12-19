@@ -1,12 +1,12 @@
 import mysql from "mysql2/promise";
 import { getLogger } from "@probitas/logger";
 import {
-  createSqlQueryResultError,
-  createSqlQueryResultFailure,
-  createSqlQueryResultSuccess,
   SqlConnectionError,
   type SqlQueryOptions,
   type SqlQueryResult,
+  SqlQueryResultErrorImpl,
+  SqlQueryResultFailureImpl,
+  SqlQueryResultSuccessImpl,
   type SqlTransaction,
   type SqlTransactionOptions,
 } from "@probitas/client-sql";
@@ -16,25 +16,6 @@ import { MySqlTransactionImpl } from "./transaction.ts";
 import type { MySqlTransaction } from "./transaction.ts";
 
 const logger = getLogger("probitas", "client", "sql", "mysql");
-
-/**
- * Format SQL for logging, truncating if necessary.
- */
-function formatSql(sql: string): string {
-  return sql.length > 1000 ? sql.slice(0, 1000) + "..." : sql;
-}
-
-/**
- * Format parameters for logging, truncating if necessary.
- */
-function formatParams(params: unknown): string {
-  try {
-    const str = JSON.stringify(params);
-    return str.length > 500 ? str.slice(0, 500) + "..." : str;
-  } catch {
-    return "<unserializable>";
-  }
-}
 
 /**
  * MySQL client interface.
@@ -304,7 +285,7 @@ class MySqlClientImpl implements MySqlClient {
       if (shouldThrow) {
         throw error;
       }
-      return createSqlQueryResultFailure<T>(error, 0);
+      return new SqlQueryResultFailureImpl<T>(error, 0);
     }
 
     const startTime = performance.now();
@@ -316,8 +297,8 @@ class MySqlClientImpl implements MySqlClient {
     });
 
     logger.trace("MySQL query details", {
-      sql: formatSql(sql),
-      params: params ? formatParams(params) : undefined,
+      sql: sql,
+      params: params ? params : undefined,
     });
 
     try {
@@ -335,11 +316,11 @@ class MySqlClientImpl implements MySqlClient {
         if (rows.length > 0) {
           const sample = rows.slice(0, 1);
           logger.trace("MySQL query row sample", {
-            rows: formatParams(sample),
+            rows: sample,
           });
         }
 
-        return createSqlQueryResultSuccess<T>({
+        return new SqlQueryResultSuccessImpl<T>({
           rows: rows as unknown as T[],
           rowCount: rows.length,
           duration,
@@ -357,7 +338,7 @@ class MySqlClientImpl implements MySqlClient {
         warnings: resultHeader.warningStatus,
       });
 
-      return createSqlQueryResultSuccess<T>({
+      return new SqlQueryResultSuccessImpl<T>({
         rows: [],
         rowCount: resultHeader.affectedRows,
         duration,
@@ -385,10 +366,10 @@ class MySqlClientImpl implements MySqlClient {
 
       // Return Failure for connection errors, Error for query errors
       if (sqlError instanceof SqlConnectionError) {
-        return createSqlQueryResultFailure<T>(sqlError, duration);
+        return new SqlQueryResultFailureImpl<T>(sqlError, duration);
       }
 
-      return createSqlQueryResultError<T>(sqlError, duration);
+      return new SqlQueryResultErrorImpl<T>(sqlError, duration);
     }
   }
 

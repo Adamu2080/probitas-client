@@ -1,11 +1,11 @@
 import type { DuckDBConnection } from "@duckdb/node-api";
 import {
-  createSqlQueryResultError,
-  createSqlQueryResultFailure,
-  createSqlQueryResultSuccess,
   SqlConnectionError,
   type SqlQueryOptions,
   type SqlQueryResult,
+  SqlQueryResultErrorImpl,
+  SqlQueryResultFailureImpl,
+  SqlQueryResultSuccessImpl,
   type SqlTransaction,
   type SqlTransactionOptions,
 } from "@probitas/client-sql";
@@ -58,7 +58,7 @@ export class DuckDbTransactionImpl implements SqlTransaction {
       if (shouldThrow) {
         throw error;
       }
-      return createSqlQueryResultFailure<T>(error, 0);
+      return new SqlQueryResultFailureImpl<T>(error, 0);
     }
 
     const startTime = performance.now();
@@ -121,14 +121,14 @@ export class DuckDbTransactionImpl implements SqlTransaction {
       const duration = performance.now() - startTime;
 
       if (isSelect) {
-        return createSqlQueryResultSuccess<T>({
+        return new SqlQueryResultSuccessImpl<T>({
           rows: rows as T[],
           rowCount: rows.length,
           duration,
         });
       } else {
         // For INSERT/UPDATE/DELETE, rows will be empty
-        return createSqlQueryResultSuccess<T>({
+        return new SqlQueryResultSuccessImpl<T>({
           rows: [],
           rowCount: rows.length,
           duration,
@@ -145,10 +145,10 @@ export class DuckDbTransactionImpl implements SqlTransaction {
 
       // Return Failure for connection errors, Error for query errors
       if (sqlError instanceof SqlConnectionError) {
-        return createSqlQueryResultFailure<T>(sqlError, duration);
+        return new SqlQueryResultFailureImpl<T>(sqlError, duration);
       }
 
-      return createSqlQueryResultError<T>(sqlError, duration);
+      return new SqlQueryResultErrorImpl<T>(sqlError, duration);
     }
   }
 
