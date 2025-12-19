@@ -1408,6 +1408,7 @@
         "dependencies": [
           "jsr:@probitas/client@0",
           "jsr:@probitas/logger@~0.2.1",
+          "jsr:@std/async@^1.0.15",
           "npm:@aws-sdk/client-sqs@^3.700.0"
         ]
       }

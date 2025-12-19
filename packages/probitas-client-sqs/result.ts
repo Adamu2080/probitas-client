@@ -71,6 +71,79 @@ export type SqsSendResult =
   | SqsSendResultError
   | SqsSendResultFailure;
 
+/**
+ * Implementation class for SqsSendResultSuccess.
+ * @internal
+ */
+export class SqsSendResultSuccessImpl implements SqsSendResultSuccess {
+  readonly kind = "sqs:send" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly messageId: string;
+  readonly md5OfBody: string;
+  readonly sequenceNumber: string | null;
+  readonly duration: number;
+
+  constructor(params: {
+    messageId: string;
+    md5OfBody: string;
+    sequenceNumber: string | null;
+    duration: number;
+  }) {
+    this.messageId = params.messageId;
+    this.md5OfBody = params.md5OfBody;
+    this.sequenceNumber = params.sequenceNumber;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsSendResultError.
+ * @internal
+ */
+export class SqsSendResultErrorImpl implements SqsSendResultError {
+  readonly kind = "sqs:send" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: SqsError;
+  readonly messageId = null;
+  readonly md5OfBody = null;
+  readonly sequenceNumber = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsSendResultFailure.
+ * @internal
+ */
+export class SqsSendResultFailureImpl implements SqsSendResultFailure {
+  readonly kind = "sqs:send" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: SqsFailureError;
+  readonly messageId = null;
+  readonly md5OfBody = null;
+  readonly sequenceNumber = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
 // ============================================================================
 // SqsSendBatchResult
 // ============================================================================
@@ -128,6 +201,76 @@ export type SqsSendBatchResult =
   | SqsSendBatchResultError
   | SqsSendBatchResultFailure;
 
+/**
+ * Implementation class for SqsSendBatchResultSuccess.
+ * @internal
+ */
+export class SqsSendBatchResultSuccessImpl
+  implements SqsSendBatchResultSuccess {
+  readonly kind = "sqs:send-batch" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly successful: readonly SqsBatchSuccessEntry[];
+  readonly failed: readonly SqsBatchFailedEntry[];
+  readonly duration: number;
+
+  constructor(params: {
+    successful: readonly SqsBatchSuccessEntry[];
+    failed: readonly SqsBatchFailedEntry[];
+    duration: number;
+  }) {
+    this.successful = params.successful;
+    this.failed = params.failed;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsSendBatchResultError.
+ * @internal
+ */
+export class SqsSendBatchResultErrorImpl implements SqsSendBatchResultError {
+  readonly kind = "sqs:send-batch" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: SqsError;
+  readonly successful = [] as const;
+  readonly failed = [] as const;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsSendBatchResultFailure.
+ * @internal
+ */
+export class SqsSendBatchResultFailureImpl
+  implements SqsSendBatchResultFailure {
+  readonly kind = "sqs:send-batch" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: SqsFailureError;
+  readonly successful = null;
+  readonly failed = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
 // ============================================================================
 // SqsReceiveResult
 // ============================================================================
@@ -178,6 +321,69 @@ export type SqsReceiveResult =
   | SqsReceiveResultError
   | SqsReceiveResultFailure;
 
+/**
+ * Implementation class for SqsReceiveResultSuccess.
+ * @internal
+ */
+export class SqsReceiveResultSuccessImpl implements SqsReceiveResultSuccess {
+  readonly kind = "sqs:receive" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly messages: readonly SqsMessage[];
+  readonly duration: number;
+
+  constructor(params: {
+    messages: readonly SqsMessage[];
+    duration: number;
+  }) {
+    this.messages = params.messages;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsReceiveResultError.
+ * @internal
+ */
+export class SqsReceiveResultErrorImpl implements SqsReceiveResultError {
+  readonly kind = "sqs:receive" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: SqsError;
+  readonly messages = [] as const;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsReceiveResultFailure.
+ * @internal
+ */
+export class SqsReceiveResultFailureImpl implements SqsReceiveResultFailure {
+  readonly kind = "sqs:receive" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: SqsFailureError;
+  readonly messages = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
 // ============================================================================
 // SqsDeleteResult
 // ============================================================================
@@ -223,6 +429,64 @@ export type SqsDeleteResult =
   | SqsDeleteResultSuccess
   | SqsDeleteResultError
   | SqsDeleteResultFailure;
+
+/**
+ * Implementation class for SqsDeleteResultSuccess.
+ * @internal
+ */
+export class SqsDeleteResultSuccessImpl implements SqsDeleteResultSuccess {
+  readonly kind = "sqs:delete" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly duration: number;
+
+  constructor(params: {
+    duration: number;
+  }) {
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsDeleteResultError.
+ * @internal
+ */
+export class SqsDeleteResultErrorImpl implements SqsDeleteResultError {
+  readonly kind = "sqs:delete" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: SqsError;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsDeleteResultFailure.
+ * @internal
+ */
+export class SqsDeleteResultFailureImpl implements SqsDeleteResultFailure {
+  readonly kind = "sqs:delete" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: SqsFailureError;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
 
 // ============================================================================
 // SqsDeleteBatchResult
@@ -281,6 +545,77 @@ export type SqsDeleteBatchResult =
   | SqsDeleteBatchResultError
   | SqsDeleteBatchResultFailure;
 
+/**
+ * Implementation class for SqsDeleteBatchResultSuccess.
+ * @internal
+ */
+export class SqsDeleteBatchResultSuccessImpl
+  implements SqsDeleteBatchResultSuccess {
+  readonly kind = "sqs:delete-batch" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly successful: readonly string[];
+  readonly failed: readonly SqsBatchFailedEntry[];
+  readonly duration: number;
+
+  constructor(params: {
+    successful: readonly string[];
+    failed: readonly SqsBatchFailedEntry[];
+    duration: number;
+  }) {
+    this.successful = params.successful;
+    this.failed = params.failed;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsDeleteBatchResultError.
+ * @internal
+ */
+export class SqsDeleteBatchResultErrorImpl
+  implements SqsDeleteBatchResultError {
+  readonly kind = "sqs:delete-batch" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: SqsError;
+  readonly successful = [] as const;
+  readonly failed = [] as const;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsDeleteBatchResultFailure.
+ * @internal
+ */
+export class SqsDeleteBatchResultFailureImpl
+  implements SqsDeleteBatchResultFailure {
+  readonly kind = "sqs:delete-batch" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: SqsFailureError;
+  readonly successful = null;
+  readonly failed = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
 // ============================================================================
 // SqsEnsureQueueResult
 // ============================================================================
@@ -331,6 +666,72 @@ export type SqsEnsureQueueResult =
   | SqsEnsureQueueResultError
   | SqsEnsureQueueResultFailure;
 
+/**
+ * Implementation class for SqsEnsureQueueResultSuccess.
+ * @internal
+ */
+export class SqsEnsureQueueResultSuccessImpl
+  implements SqsEnsureQueueResultSuccess {
+  readonly kind = "sqs:ensure-queue" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly queueUrl: string;
+  readonly duration: number;
+
+  constructor(params: {
+    queueUrl: string;
+    duration: number;
+  }) {
+    this.queueUrl = params.queueUrl;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsEnsureQueueResultError.
+ * @internal
+ */
+export class SqsEnsureQueueResultErrorImpl
+  implements SqsEnsureQueueResultError {
+  readonly kind = "sqs:ensure-queue" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: SqsError;
+  readonly queueUrl = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsEnsureQueueResultFailure.
+ * @internal
+ */
+export class SqsEnsureQueueResultFailureImpl
+  implements SqsEnsureQueueResultFailure {
+  readonly kind = "sqs:ensure-queue" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: SqsFailureError;
+  readonly queueUrl = null;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
 // ============================================================================
 // SqsDeleteQueueResult
 // ============================================================================
@@ -377,6 +778,67 @@ export type SqsDeleteQueueResult =
   | SqsDeleteQueueResultError
   | SqsDeleteQueueResultFailure;
 
+/**
+ * Implementation class for SqsDeleteQueueResultSuccess.
+ * @internal
+ */
+export class SqsDeleteQueueResultSuccessImpl
+  implements SqsDeleteQueueResultSuccess {
+  readonly kind = "sqs:delete-queue" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly duration: number;
+
+  constructor(params: {
+    duration: number;
+  }) {
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsDeleteQueueResultError.
+ * @internal
+ */
+export class SqsDeleteQueueResultErrorImpl
+  implements SqsDeleteQueueResultError {
+  readonly kind = "sqs:delete-queue" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: SqsError;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
+/**
+ * Implementation class for SqsDeleteQueueResultFailure.
+ * @internal
+ */
+export class SqsDeleteQueueResultFailureImpl
+  implements SqsDeleteQueueResultFailure {
+  readonly kind = "sqs:delete-queue" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: SqsFailureError;
+  readonly duration: number;
+
+  constructor(params: {
+    error: SqsFailureError;
+    duration: number;
+  }) {
+    this.error = params.error;
+    this.duration = params.duration;
+  }
+}
+
 // ============================================================================
 // Union Type
 // ============================================================================
@@ -392,372 +854,3 @@ export type SqsResult =
   | SqsDeleteBatchResult
   | SqsEnsureQueueResult
   | SqsDeleteQueueResult;
-
-// ============================================================================
-// Factory Functions
-// ============================================================================
-
-/**
- * Create a successful send result.
- */
-export function createSqsSendResultSuccess(params: {
-  messageId: string;
-  md5OfBody: string;
-  sequenceNumber: string | null;
-  duration: number;
-}): SqsSendResultSuccess {
-  return {
-    kind: "sqs:send",
-    processed: true,
-    ok: true,
-    error: null,
-    messageId: params.messageId,
-    md5OfBody: params.md5OfBody,
-    sequenceNumber: params.sequenceNumber,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create an error send result.
- */
-export function createSqsSendResultError(params: {
-  error: SqsError;
-  duration: number;
-}): SqsSendResultError {
-  return {
-    kind: "sqs:send",
-    processed: true,
-    ok: false,
-    error: params.error,
-    messageId: null,
-    md5OfBody: null,
-    sequenceNumber: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a failure send result.
- */
-export function createSqsSendResultFailure(params: {
-  error: SqsFailureError;
-  duration: number;
-}): SqsSendResultFailure {
-  return {
-    kind: "sqs:send",
-    processed: false,
-    ok: false,
-    error: params.error,
-    messageId: null,
-    md5OfBody: null,
-    sequenceNumber: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a successful batch send result.
- */
-export function createSqsSendBatchResultSuccess(params: {
-  successful: readonly SqsBatchSuccessEntry[];
-  failed: readonly SqsBatchFailedEntry[];
-  duration: number;
-}): SqsSendBatchResultSuccess {
-  return {
-    kind: "sqs:send-batch",
-    processed: true,
-    ok: true,
-    error: null,
-    successful: params.successful,
-    failed: params.failed,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create an error batch send result.
- */
-export function createSqsSendBatchResultError(params: {
-  error: SqsError;
-  duration: number;
-}): SqsSendBatchResultError {
-  return {
-    kind: "sqs:send-batch",
-    processed: true,
-    ok: false,
-    error: params.error,
-    successful: [],
-    failed: [],
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a failure batch send result.
- */
-export function createSqsSendBatchResultFailure(params: {
-  error: SqsFailureError;
-  duration: number;
-}): SqsSendBatchResultFailure {
-  return {
-    kind: "sqs:send-batch",
-    processed: false,
-    ok: false,
-    error: params.error,
-    successful: null,
-    failed: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a successful receive result.
- */
-export function createSqsReceiveResultSuccess(params: {
-  messages: readonly SqsMessage[];
-  duration: number;
-}): SqsReceiveResultSuccess {
-  return {
-    kind: "sqs:receive",
-    processed: true,
-    ok: true,
-    error: null,
-    messages: params.messages,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create an error receive result.
- */
-export function createSqsReceiveResultError(params: {
-  error: SqsError;
-  duration: number;
-}): SqsReceiveResultError {
-  return {
-    kind: "sqs:receive",
-    processed: true,
-    ok: false,
-    error: params.error,
-    messages: [],
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a failure receive result.
- */
-export function createSqsReceiveResultFailure(params: {
-  error: SqsFailureError;
-  duration: number;
-}): SqsReceiveResultFailure {
-  return {
-    kind: "sqs:receive",
-    processed: false,
-    ok: false,
-    error: params.error,
-    messages: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a successful delete result.
- */
-export function createSqsDeleteResultSuccess(params: {
-  duration: number;
-}): SqsDeleteResultSuccess {
-  return {
-    kind: "sqs:delete",
-    processed: true,
-    ok: true,
-    error: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create an error delete result.
- */
-export function createSqsDeleteResultError(params: {
-  error: SqsError;
-  duration: number;
-}): SqsDeleteResultError {
-  return {
-    kind: "sqs:delete",
-    processed: true,
-    ok: false,
-    error: params.error,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a failure delete result.
- */
-export function createSqsDeleteResultFailure(params: {
-  error: SqsFailureError;
-  duration: number;
-}): SqsDeleteResultFailure {
-  return {
-    kind: "sqs:delete",
-    processed: false,
-    ok: false,
-    error: params.error,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a successful batch delete result.
- */
-export function createSqsDeleteBatchResultSuccess(params: {
-  successful: readonly string[];
-  failed: readonly SqsBatchFailedEntry[];
-  duration: number;
-}): SqsDeleteBatchResultSuccess {
-  return {
-    kind: "sqs:delete-batch",
-    processed: true,
-    ok: true,
-    error: null,
-    successful: params.successful,
-    failed: params.failed,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create an error batch delete result.
- */
-export function createSqsDeleteBatchResultError(params: {
-  error: SqsError;
-  duration: number;
-}): SqsDeleteBatchResultError {
-  return {
-    kind: "sqs:delete-batch",
-    processed: true,
-    ok: false,
-    error: params.error,
-    successful: [],
-    failed: [],
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a failure batch delete result.
- */
-export function createSqsDeleteBatchResultFailure(params: {
-  error: SqsFailureError;
-  duration: number;
-}): SqsDeleteBatchResultFailure {
-  return {
-    kind: "sqs:delete-batch",
-    processed: false,
-    ok: false,
-    error: params.error,
-    successful: null,
-    failed: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a successful ensure queue result.
- */
-export function createSqsEnsureQueueResultSuccess(params: {
-  queueUrl: string;
-  duration: number;
-}): SqsEnsureQueueResultSuccess {
-  return {
-    kind: "sqs:ensure-queue",
-    processed: true,
-    ok: true,
-    error: null,
-    queueUrl: params.queueUrl,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create an error ensure queue result.
- */
-export function createSqsEnsureQueueResultError(params: {
-  error: SqsError;
-  duration: number;
-}): SqsEnsureQueueResultError {
-  return {
-    kind: "sqs:ensure-queue",
-    processed: true,
-    ok: false,
-    error: params.error,
-    queueUrl: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a failure ensure queue result.
- */
-export function createSqsEnsureQueueResultFailure(params: {
-  error: SqsFailureError;
-  duration: number;
-}): SqsEnsureQueueResultFailure {
-  return {
-    kind: "sqs:ensure-queue",
-    processed: false,
-    ok: false,
-    error: params.error,
-    queueUrl: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a successful delete queue result.
- */
-export function createSqsDeleteQueueResultSuccess(params: {
-  duration: number;
-}): SqsDeleteQueueResultSuccess {
-  return {
-    kind: "sqs:delete-queue",
-    processed: true,
-    ok: true,
-    error: null,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create an error delete queue result.
- */
-export function createSqsDeleteQueueResultError(params: {
-  error: SqsError;
-  duration: number;
-}): SqsDeleteQueueResultError {
-  return {
-    kind: "sqs:delete-queue",
-    processed: true,
-    ok: false,
-    error: params.error,
-    duration: params.duration,
-  };
-}
-
-/**
- * Create a failure delete queue result.
- */
-export function createSqsDeleteQueueResultFailure(params: {
-  error: SqsFailureError;
-  duration: number;
-}): SqsDeleteQueueResultFailure {
-  return {
-    kind: "sqs:delete-queue",
-    processed: false,
-    ok: false,
-    error: params.error,
-    duration: params.duration,
-  };
-}

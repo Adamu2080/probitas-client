@@ -13,6 +13,7 @@ import {
 } from "@aws-sdk/client-sqs";
 import { AbortError, TimeoutError } from "@probitas/client";
 import { getLogger } from "@probitas/logger";
+import { deadline } from "@std/async/deadline";
 import type {
   SqsBatchMessage,
   SqsBatchOptions,
@@ -44,27 +45,27 @@ import {
   SqsQueueNotFoundError,
 } from "./errors.ts";
 import {
-  createSqsDeleteBatchResultError,
-  createSqsDeleteBatchResultFailure,
-  createSqsDeleteBatchResultSuccess,
-  createSqsDeleteQueueResultError,
-  createSqsDeleteQueueResultFailure,
-  createSqsDeleteQueueResultSuccess,
-  createSqsDeleteResultError,
-  createSqsDeleteResultFailure,
-  createSqsDeleteResultSuccess,
-  createSqsEnsureQueueResultError,
-  createSqsEnsureQueueResultFailure,
-  createSqsEnsureQueueResultSuccess,
-  createSqsReceiveResultError,
-  createSqsReceiveResultFailure,
-  createSqsReceiveResultSuccess,
-  createSqsSendBatchResultError,
-  createSqsSendBatchResultFailure,
-  createSqsSendBatchResultSuccess,
-  createSqsSendResultError,
-  createSqsSendResultFailure,
-  createSqsSendResultSuccess,
+  SqsDeleteBatchResultErrorImpl,
+  SqsDeleteBatchResultFailureImpl,
+  SqsDeleteBatchResultSuccessImpl,
+  SqsDeleteQueueResultErrorImpl,
+  SqsDeleteQueueResultFailureImpl,
+  SqsDeleteQueueResultSuccessImpl,
+  SqsDeleteResultErrorImpl,
+  SqsDeleteResultFailureImpl,
+  SqsDeleteResultSuccessImpl,
+  SqsEnsureQueueResultErrorImpl,
+  SqsEnsureQueueResultFailureImpl,
+  SqsEnsureQueueResultSuccessImpl,
+  SqsReceiveResultErrorImpl,
+  SqsReceiveResultFailureImpl,
+  SqsReceiveResultSuccessImpl,
+  SqsSendBatchResultErrorImpl,
+  SqsSendBatchResultFailureImpl,
+  SqsSendBatchResultSuccessImpl,
+  SqsSendResultErrorImpl,
+  SqsSendResultFailureImpl,
+  SqsSendResultSuccessImpl,
 } from "./result.ts";
 
 const MAX_MESSAGE_SIZE = 256 * 1024; // 256 KB
@@ -72,25 +73,77 @@ const MAX_MESSAGE_SIZE = 256 * 1024; // 256 KB
 const logger = getLogger("probitas", "client", "sqs");
 
 /**
- * Format a value for logging, truncating long strings.
+ * Convert DOMException to TimeoutError or AbortError.
+ * Uses name-based checking instead of instanceof for cross-realm compatibility.
  */
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined) return String(value);
-  if (typeof value === "string") {
-    return value.length > 200 ? value.slice(0, 200) + "..." : value;
+function convertDeadlineError(
+  err: unknown,
+  operation: string,
+  timeoutMs: number,
+): unknown {
+  if (err instanceof Error) {
+    if (err.name === "TimeoutError") {
+      return new TimeoutError(`Operation timed out: ${operation}`, timeoutMs);
+    }
+    if (err.name === "AbortError") {
+      return new AbortError(`Operation aborted: ${operation}`);
+    }
   }
-  try {
-    const str = JSON.stringify(value);
-    return str.length > 200 ? str.slice(0, 200) + "..." : str;
-  } catch {
-    return "<unserializable>";
+  return err;
+}
+
+/**
+ * Execute a promise with abort signal support only.
+ *
+ * This function exists as a workaround for @std/async@1.0.15's `deadline` limitation.
+ * In v1.0.15, `deadline(promise, Infinity, { signal })` throws:
+ *   "TypeError: Failed to execute 'AbortSignal.timeout': Argument 1 is not a finite number"
+ *
+ * This is because v1.0.15 unconditionally calls `AbortSignal.timeout(ms)`:
+ *   const signals = [AbortSignal.timeout(ms)];  // Always called, even when ms=Infinity
+ *
+ * The fix has been merged to main branch (adding `ms < Number.MAX_SAFE_INTEGER` check)
+ * and is expected to be released in @std/async@1.0.16 or later.
+ *
+ * Once the fix is released, this function can be removed and `withOptions` can
+ * simply use `deadline(promise, Infinity, { signal })` for signal-only cases.
+ *
+ * @see https://github.com/denoland/std/blob/main/async/deadline.ts
+ */
+function withSignal<T>(
+  promise: Promise<T>,
+  signal: AbortSignal,
+  operation: string,
+): Promise<T> {
+  if (signal.aborted) {
+    return Promise.reject(new AbortError(`Operation aborted: ${operation}`));
   }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      reject(new AbortError(`Operation aborted: ${operation}`));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise
+      .then((value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      })
+      .catch((err) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      });
+  });
 }
 
 /**
  * Execute a promise with timeout and abort signal support.
+ *
+ * Routes to appropriate implementation based on options:
+ * - No options: return promise as-is
+ * - Signal only: use withSignal (workaround for @std/async@1.0.15)
+ * - Timeout (±signal): use deadline from @std/async
  */
-async function withOptions<T>(
+function withOptions<T>(
   promise: Promise<T>,
   options: SqsOptions | undefined,
   operation: string,
@@ -98,50 +151,17 @@ async function withOptions<T>(
   if (!options?.timeout && !options?.signal) {
     return promise;
   }
-
-  const controllers: { cleanup: () => void }[] = [];
-
-  try {
-    const racePromises: Promise<T>[] = [promise];
-
-    if (options.timeout !== undefined) {
-      const timeoutMs = options.timeout;
-      let timeoutId: number;
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => {
-          reject(
-            new TimeoutError(`Operation timed out: ${operation}`, timeoutMs),
-          );
-        }, timeoutMs);
-      });
-      controllers.push({ cleanup: () => clearTimeout(timeoutId) });
-      racePromises.push(timeoutPromise);
-    }
-
-    if (options.signal) {
-      const signal = options.signal;
-      if (signal.aborted) {
-        throw new AbortError(`Operation aborted: ${operation}`);
-      }
-
-      const abortPromise = new Promise<never>((_, reject) => {
-        const onAbort = () => {
-          reject(new AbortError(`Operation aborted: ${operation}`));
-        };
-        signal.addEventListener("abort", onAbort, { once: true });
-        controllers.push({
-          cleanup: () => signal.removeEventListener("abort", onAbort),
-        });
-      });
-      racePromises.push(abortPromise);
-    }
-
-    return await Promise.race(racePromises);
-  } finally {
-    for (const controller of controllers) {
-      controller.cleanup();
-    }
+  // Signal-only: use withSignal workaround (see withSignal JSDoc for details)
+  // TODO: Replace with `deadline(promise, Infinity, { signal })` after @std/async@1.0.16
+  if (!options.timeout && options.signal) {
+    return withSignal(promise, options.signal, operation);
   }
+  // Timeout (with optional signal): use deadline
+  const timeoutMs = options.timeout!;
+  return deadline(promise, timeoutMs, { signal: options.signal })
+    .catch((err: unknown) => {
+      throw convertDeadlineError(err, operation, timeoutMs);
+    });
 }
 
 /**
@@ -548,21 +568,21 @@ class SqsClientImpl implements SqsClient {
     if (closedError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw closedError;
-      return createSqsSendResultError({ error: closedError, duration });
+      return new SqsSendResultErrorImpl({ error: closedError, duration });
     }
 
     const queueUrlError = this.#checkQueueUrl(operation);
     if (queueUrlError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw queueUrlError;
-      return createSqsSendResultError({ error: queueUrlError, duration });
+      return new SqsSendResultErrorImpl({ error: queueUrlError, duration });
     }
 
     const sizeError = validateMessageSize(body);
     if (sizeError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw sizeError;
-      return createSqsSendResultError({ error: sizeError, duration });
+      return new SqsSendResultErrorImpl({ error: sizeError, duration });
     }
 
     const queueUrl = this.#queueUrl!;
@@ -605,12 +625,7 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      // Log detailed content
-      logger.trace("SQS send message details", {
-        body: formatValue(body),
-      });
-
-      return createSqsSendResultSuccess({
+      return new SqsSendResultSuccessImpl({
         messageId: response.MessageId!,
         md5OfBody: response.MD5OfMessageBody!,
         sequenceNumber: response.SequenceNumber ?? null,
@@ -628,9 +643,9 @@ class SqsClientImpl implements SqsClient {
       if (this.#shouldThrow(options)) throw sqsError;
 
       if (isFailureError(sqsError)) {
-        return createSqsSendResultFailure({ error: sqsError, duration });
+        return new SqsSendResultFailureImpl({ error: sqsError, duration });
       }
-      return createSqsSendResultError({ error: sqsError, duration });
+      return new SqsSendResultErrorImpl({ error: sqsError, duration });
     }
   }
 
@@ -646,14 +661,17 @@ class SqsClientImpl implements SqsClient {
     if (closedError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw closedError;
-      return createSqsSendBatchResultError({ error: closedError, duration });
+      return new SqsSendBatchResultErrorImpl({ error: closedError, duration });
     }
 
     const queueUrlError = this.#checkQueueUrl(operation);
     if (queueUrlError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw queueUrlError;
-      return createSqsSendBatchResultError({ error: queueUrlError, duration });
+      return new SqsSendBatchResultErrorImpl({
+        error: queueUrlError,
+        duration,
+      });
     }
 
     // Validate message sizes
@@ -662,7 +680,7 @@ class SqsClientImpl implements SqsClient {
       if (sizeError) {
         const duration = performance.now() - startTime;
         if (this.#shouldThrow(options)) throw sizeError;
-        return createSqsSendBatchResultError({ error: sizeError, duration });
+        return new SqsSendBatchResultErrorImpl({ error: sizeError, duration });
       }
     }
 
@@ -715,15 +733,7 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      // Log detailed content
-      logger.trace("SQS send batch messages details", {
-        messages: messages.map((m) => ({
-          id: m.id,
-          body: formatValue(m.body),
-        })),
-      });
-
-      return createSqsSendBatchResultSuccess({
+      return new SqsSendBatchResultSuccessImpl({
         successful,
         failed,
         duration,
@@ -741,9 +751,9 @@ class SqsClientImpl implements SqsClient {
       if (this.#shouldThrow(options)) throw sqsError;
 
       if (isFailureError(sqsError)) {
-        return createSqsSendBatchResultFailure({ error: sqsError, duration });
+        return new SqsSendBatchResultFailureImpl({ error: sqsError, duration });
       }
-      return createSqsSendBatchResultError({ error: sqsError, duration });
+      return new SqsSendBatchResultErrorImpl({ error: sqsError, duration });
     }
   }
 
@@ -758,14 +768,14 @@ class SqsClientImpl implements SqsClient {
     if (closedError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw closedError;
-      return createSqsReceiveResultError({ error: closedError, duration });
+      return new SqsReceiveResultErrorImpl({ error: closedError, duration });
     }
 
     const queueUrlError = this.#checkQueueUrl(operation);
     if (queueUrlError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw queueUrlError;
-      return createSqsReceiveResultError({ error: queueUrlError, duration });
+      return new SqsReceiveResultErrorImpl({ error: queueUrlError, duration });
     }
 
     const queueUrl = this.#queueUrl!;
@@ -819,15 +829,7 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      // Log detailed content
-      logger.trace("SQS receive messages details", {
-        messages: messages.map((m) => ({
-          messageId: m.messageId,
-          body: formatValue(m.body),
-        })),
-      });
-
-      return createSqsReceiveResultSuccess({
+      return new SqsReceiveResultSuccessImpl({
         messages,
         duration,
       });
@@ -843,9 +845,9 @@ class SqsClientImpl implements SqsClient {
       if (this.#shouldThrow(options)) throw sqsError;
 
       if (isFailureError(sqsError)) {
-        return createSqsReceiveResultFailure({ error: sqsError, duration });
+        return new SqsReceiveResultFailureImpl({ error: sqsError, duration });
       }
-      return createSqsReceiveResultError({ error: sqsError, duration });
+      return new SqsReceiveResultErrorImpl({ error: sqsError, duration });
     }
   }
 
@@ -861,14 +863,14 @@ class SqsClientImpl implements SqsClient {
     if (closedError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw closedError;
-      return createSqsDeleteResultError({ error: closedError, duration });
+      return new SqsDeleteResultErrorImpl({ error: closedError, duration });
     }
 
     const queueUrlError = this.#checkQueueUrl(operation);
     if (queueUrlError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw queueUrlError;
-      return createSqsDeleteResultError({ error: queueUrlError, duration });
+      return new SqsDeleteResultErrorImpl({ error: queueUrlError, duration });
     }
 
     const queueUrl = this.#queueUrl!;
@@ -897,7 +899,7 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      return createSqsDeleteResultSuccess({ duration });
+      return new SqsDeleteResultSuccessImpl({ duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.debug("SQS delete message failed", {
@@ -910,9 +912,9 @@ class SqsClientImpl implements SqsClient {
       if (this.#shouldThrow(options)) throw sqsError;
 
       if (isFailureError(sqsError)) {
-        return createSqsDeleteResultFailure({ error: sqsError, duration });
+        return new SqsDeleteResultFailureImpl({ error: sqsError, duration });
       }
-      return createSqsDeleteResultError({ error: sqsError, duration });
+      return new SqsDeleteResultErrorImpl({ error: sqsError, duration });
     }
   }
 
@@ -928,14 +930,17 @@ class SqsClientImpl implements SqsClient {
     if (closedError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw closedError;
-      return createSqsDeleteBatchResultError({ error: closedError, duration });
+      return new SqsDeleteBatchResultErrorImpl({
+        error: closedError,
+        duration,
+      });
     }
 
     const queueUrlError = this.#checkQueueUrl(operation);
     if (queueUrlError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw queueUrlError;
-      return createSqsDeleteBatchResultError({
+      return new SqsDeleteBatchResultErrorImpl({
         error: queueUrlError,
         duration,
       });
@@ -981,7 +986,7 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      return createSqsDeleteBatchResultSuccess({
+      return new SqsDeleteBatchResultSuccessImpl({
         successful,
         failed,
         duration,
@@ -999,9 +1004,12 @@ class SqsClientImpl implements SqsClient {
       if (this.#shouldThrow(options)) throw sqsError;
 
       if (isFailureError(sqsError)) {
-        return createSqsDeleteBatchResultFailure({ error: sqsError, duration });
+        return new SqsDeleteBatchResultFailureImpl({
+          error: sqsError,
+          duration,
+        });
       }
-      return createSqsDeleteBatchResultError({ error: sqsError, duration });
+      return new SqsDeleteBatchResultErrorImpl({ error: sqsError, duration });
     }
   }
 
@@ -1014,14 +1022,14 @@ class SqsClientImpl implements SqsClient {
     if (closedError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw closedError;
-      return createSqsDeleteResultError({ error: closedError, duration });
+      return new SqsDeleteResultErrorImpl({ error: closedError, duration });
     }
 
     const queueUrlError = this.#checkQueueUrl(operation);
     if (queueUrlError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw queueUrlError;
-      return createSqsDeleteResultError({ error: queueUrlError, duration });
+      return new SqsDeleteResultErrorImpl({ error: queueUrlError, duration });
     }
 
     const queueUrl = this.#queueUrl!;
@@ -1049,7 +1057,7 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      return createSqsDeleteResultSuccess({ duration });
+      return new SqsDeleteResultSuccessImpl({ duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.debug("SQS purge queue failed", {
@@ -1062,9 +1070,9 @@ class SqsClientImpl implements SqsClient {
       if (this.#shouldThrow(options)) throw sqsError;
 
       if (isFailureError(sqsError)) {
-        return createSqsDeleteResultFailure({ error: sqsError, duration });
+        return new SqsDeleteResultFailureImpl({ error: sqsError, duration });
       }
-      return createSqsDeleteResultError({ error: sqsError, duration });
+      return new SqsDeleteResultErrorImpl({ error: sqsError, duration });
     }
   }
 
@@ -1080,7 +1088,10 @@ class SqsClientImpl implements SqsClient {
     if (closedError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw closedError;
-      return createSqsEnsureQueueResultError({ error: closedError, duration });
+      return new SqsEnsureQueueResultErrorImpl({
+        error: closedError,
+        duration,
+      });
     }
 
     // Log ensureQueue start
@@ -1116,7 +1127,7 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      return createSqsEnsureQueueResultSuccess({
+      return new SqsEnsureQueueResultSuccessImpl({
         queueUrl,
         duration,
       });
@@ -1132,9 +1143,12 @@ class SqsClientImpl implements SqsClient {
       if (this.#shouldThrow(options)) throw sqsError;
 
       if (isFailureError(sqsError)) {
-        return createSqsEnsureQueueResultFailure({ error: sqsError, duration });
+        return new SqsEnsureQueueResultFailureImpl({
+          error: sqsError,
+          duration,
+        });
       }
-      return createSqsEnsureQueueResultError({ error: sqsError, duration });
+      return new SqsEnsureQueueResultErrorImpl({ error: sqsError, duration });
     }
   }
 
@@ -1150,7 +1164,10 @@ class SqsClientImpl implements SqsClient {
     if (closedError) {
       const duration = performance.now() - startTime;
       if (this.#shouldThrow(options)) throw closedError;
-      return createSqsDeleteQueueResultError({ error: closedError, duration });
+      return new SqsDeleteQueueResultErrorImpl({
+        error: closedError,
+        duration,
+      });
     }
 
     // Log deleteQueue start
@@ -1177,7 +1194,7 @@ class SqsClientImpl implements SqsClient {
         duration: `${duration.toFixed(2)}ms`,
       });
 
-      return createSqsDeleteQueueResultSuccess({ duration });
+      return new SqsDeleteQueueResultSuccessImpl({ duration });
     } catch (error) {
       const duration = performance.now() - startTime;
       logger.debug("SQS delete queue failed", {
@@ -1190,9 +1207,12 @@ class SqsClientImpl implements SqsClient {
       if (this.#shouldThrow(options)) throw sqsError;
 
       if (isFailureError(sqsError)) {
-        return createSqsDeleteQueueResultFailure({ error: sqsError, duration });
+        return new SqsDeleteQueueResultFailureImpl({
+          error: sqsError,
+          duration,
+        });
       }
-      return createSqsDeleteQueueResultError({ error: sqsError, duration });
+      return new SqsDeleteQueueResultErrorImpl({ error: sqsError, duration });
     }
   }
 
