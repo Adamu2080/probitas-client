@@ -270,272 +270,287 @@ export type RabbitMqResult =
   | RabbitMqExchangeResult;
 
 // ============================================================================
-// RabbitMqPublishResult Factory Functions
+// Result Implementation Classes
 // ============================================================================
 
 /**
- * Create a successful publish result.
+ * Implementation class for RabbitMqPublishResultSuccess.
+ * @internal
  */
-export function createRabbitMqPublishResultSuccess(params: {
-  duration: number;
-}): RabbitMqPublishResultSuccess {
-  return {
-    kind: "rabbitmq:publish",
-    processed: true,
-    ok: true,
-    error: null,
-    duration: params.duration,
-  };
+export class RabbitMqPublishResultSuccessImpl
+  implements RabbitMqPublishResultSuccess {
+  readonly kind = "rabbitmq:publish" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly duration: number;
+
+  constructor(duration: number) {
+    this.duration = duration;
+  }
 }
 
 /**
- * Create an error publish result.
+ * Implementation class for RabbitMqPublishResultError.
+ * @internal
  */
-export function createRabbitMqPublishResultError(params: {
-  error: RabbitMqOperationError;
-  duration: number;
-}): RabbitMqPublishResultError {
-  return {
-    kind: "rabbitmq:publish",
-    processed: true,
-    ok: false,
-    error: params.error,
-    duration: params.duration,
-  };
+export class RabbitMqPublishResultErrorImpl
+  implements RabbitMqPublishResultError {
+  readonly kind = "rabbitmq:publish" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: RabbitMqOperationError;
+  readonly duration: number;
+
+  constructor(error: RabbitMqOperationError, duration: number) {
+    this.error = error;
+    this.duration = duration;
+  }
 }
 
 /**
- * Create a failure publish result.
+ * Implementation class for RabbitMqPublishResultFailure.
+ * @internal
  */
-export function createRabbitMqPublishResultFailure(params: {
-  error: RabbitMqFailureError;
-  duration: number;
-}): RabbitMqPublishResultFailure {
-  return {
-    kind: "rabbitmq:publish",
-    processed: false,
-    ok: false,
-    error: params.error,
-    duration: params.duration,
-  };
-}
+export class RabbitMqPublishResultFailureImpl
+  implements RabbitMqPublishResultFailure {
+  readonly kind = "rabbitmq:publish" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: RabbitMqFailureError;
+  readonly duration: number;
 
-// ============================================================================
-// RabbitMqConsumeResult Factory Functions
-// ============================================================================
-
-/**
- * Create a successful consume result.
- */
-export function createRabbitMqConsumeResultSuccess(params: {
-  message: RabbitMqMessage | null;
-  duration: number;
-}): RabbitMqConsumeResultSuccess {
-  return {
-    kind: "rabbitmq:consume",
-    processed: true,
-    ok: true,
-    error: null,
-    message: params.message,
-    duration: params.duration,
-  };
+  constructor(error: RabbitMqFailureError, duration: number) {
+    this.error = error;
+    this.duration = duration;
+  }
 }
 
 /**
- * Create an error consume result.
+ * Implementation class for RabbitMqConsumeResultSuccess.
+ * @internal
  */
-export function createRabbitMqConsumeResultError(params: {
-  error: RabbitMqOperationError;
-  duration: number;
-}): RabbitMqConsumeResultError {
-  return {
-    kind: "rabbitmq:consume",
-    processed: true,
-    ok: false,
-    error: params.error,
-    message: null,
-    duration: params.duration,
-  };
+export class RabbitMqConsumeResultSuccessImpl
+  implements RabbitMqConsumeResultSuccess {
+  readonly kind = "rabbitmq:consume" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly message: RabbitMqMessage | null;
+  readonly duration: number;
+
+  constructor(message: RabbitMqMessage | null, duration: number) {
+    this.message = message;
+    this.duration = duration;
+  }
 }
 
 /**
- * Create a failure consume result.
+ * Implementation class for RabbitMqConsumeResultError.
+ * @internal
  */
-export function createRabbitMqConsumeResultFailure(params: {
-  error: RabbitMqFailureError;
-  duration: number;
-}): RabbitMqConsumeResultFailure {
-  return {
-    kind: "rabbitmq:consume",
-    processed: false,
-    ok: false,
-    error: params.error,
-    message: null,
-    duration: params.duration,
-  };
-}
+export class RabbitMqConsumeResultErrorImpl
+  implements RabbitMqConsumeResultError {
+  readonly kind = "rabbitmq:consume" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: RabbitMqOperationError;
+  readonly message = null;
+  readonly duration: number;
 
-// ============================================================================
-// RabbitMqAckResult Factory Functions
-// ============================================================================
-
-/**
- * Create a successful ack result.
- */
-export function createRabbitMqAckResultSuccess(params: {
-  duration: number;
-}): RabbitMqAckResultSuccess {
-  return {
-    kind: "rabbitmq:ack",
-    processed: true,
-    ok: true,
-    error: null,
-    duration: params.duration,
-  };
+  constructor(error: RabbitMqOperationError, duration: number) {
+    this.error = error;
+    this.duration = duration;
+  }
 }
 
 /**
- * Create an error ack result.
+ * Implementation class for RabbitMqConsumeResultFailure.
+ * @internal
  */
-export function createRabbitMqAckResultError(params: {
-  error: RabbitMqOperationError;
-  duration: number;
-}): RabbitMqAckResultError {
-  return {
-    kind: "rabbitmq:ack",
-    processed: true,
-    ok: false,
-    error: params.error,
-    duration: params.duration,
-  };
+export class RabbitMqConsumeResultFailureImpl
+  implements RabbitMqConsumeResultFailure {
+  readonly kind = "rabbitmq:consume" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: RabbitMqFailureError;
+  readonly message = null;
+  readonly duration: number;
+
+  constructor(error: RabbitMqFailureError, duration: number) {
+    this.error = error;
+    this.duration = duration;
+  }
 }
 
 /**
- * Create a failure ack result.
+ * Implementation class for RabbitMqAckResultSuccess.
+ * @internal
  */
-export function createRabbitMqAckResultFailure(params: {
-  error: RabbitMqFailureError;
-  duration: number;
-}): RabbitMqAckResultFailure {
-  return {
-    kind: "rabbitmq:ack",
-    processed: false,
-    ok: false,
-    error: params.error,
-    duration: params.duration,
-  };
-}
+export class RabbitMqAckResultSuccessImpl implements RabbitMqAckResultSuccess {
+  readonly kind = "rabbitmq:ack" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly duration: number;
 
-// ============================================================================
-// RabbitMqQueueResult Factory Functions
-// ============================================================================
-
-/**
- * Create a successful queue result.
- */
-export function createRabbitMqQueueResultSuccess(params: {
-  queue: string;
-  messageCount: number;
-  consumerCount: number;
-  duration: number;
-}): RabbitMqQueueResultSuccess {
-  return {
-    kind: "rabbitmq:queue",
-    processed: true,
-    ok: true,
-    error: null,
-    queue: params.queue,
-    messageCount: params.messageCount,
-    consumerCount: params.consumerCount,
-    duration: params.duration,
-  };
+  constructor(duration: number) {
+    this.duration = duration;
+  }
 }
 
 /**
- * Create an error queue result.
+ * Implementation class for RabbitMqAckResultError.
+ * @internal
  */
-export function createRabbitMqQueueResultError(params: {
-  error: RabbitMqOperationError;
-  duration: number;
-}): RabbitMqQueueResultError {
-  return {
-    kind: "rabbitmq:queue",
-    processed: true,
-    ok: false,
-    error: params.error,
-    queue: null,
-    messageCount: null,
-    consumerCount: null,
-    duration: params.duration,
-  };
+export class RabbitMqAckResultErrorImpl implements RabbitMqAckResultError {
+  readonly kind = "rabbitmq:ack" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: RabbitMqOperationError;
+  readonly duration: number;
+
+  constructor(error: RabbitMqOperationError, duration: number) {
+    this.error = error;
+    this.duration = duration;
+  }
 }
 
 /**
- * Create a failure queue result.
+ * Implementation class for RabbitMqAckResultFailure.
+ * @internal
  */
-export function createRabbitMqQueueResultFailure(params: {
-  error: RabbitMqFailureError;
-  duration: number;
-}): RabbitMqQueueResultFailure {
-  return {
-    kind: "rabbitmq:queue",
-    processed: false,
-    ok: false,
-    error: params.error,
-    queue: null,
-    messageCount: null,
-    consumerCount: null,
-    duration: params.duration,
-  };
-}
+export class RabbitMqAckResultFailureImpl implements RabbitMqAckResultFailure {
+  readonly kind = "rabbitmq:ack" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: RabbitMqFailureError;
+  readonly duration: number;
 
-// ============================================================================
-// RabbitMqExchangeResult Factory Functions
-// ============================================================================
-
-/**
- * Create a successful exchange result.
- */
-export function createRabbitMqExchangeResultSuccess(params: {
-  duration: number;
-}): RabbitMqExchangeResultSuccess {
-  return {
-    kind: "rabbitmq:exchange",
-    processed: true,
-    ok: true,
-    error: null,
-    duration: params.duration,
-  };
+  constructor(error: RabbitMqFailureError, duration: number) {
+    this.error = error;
+    this.duration = duration;
+  }
 }
 
 /**
- * Create an error exchange result.
+ * Implementation class for RabbitMqQueueResultSuccess.
+ * @internal
  */
-export function createRabbitMqExchangeResultError(params: {
-  error: RabbitMqOperationError;
-  duration: number;
-}): RabbitMqExchangeResultError {
-  return {
-    kind: "rabbitmq:exchange",
-    processed: true,
-    ok: false,
-    error: params.error,
-    duration: params.duration,
-  };
+export class RabbitMqQueueResultSuccessImpl
+  implements RabbitMqQueueResultSuccess {
+  readonly kind = "rabbitmq:queue" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly queue: string;
+  readonly messageCount: number;
+  readonly consumerCount: number;
+  readonly duration: number;
+
+  constructor(
+    queue: string,
+    messageCount: number,
+    consumerCount: number,
+    duration: number,
+  ) {
+    this.queue = queue;
+    this.messageCount = messageCount;
+    this.consumerCount = consumerCount;
+    this.duration = duration;
+  }
 }
 
 /**
- * Create a failure exchange result.
+ * Implementation class for RabbitMqQueueResultError.
+ * @internal
  */
-export function createRabbitMqExchangeResultFailure(params: {
-  error: RabbitMqFailureError;
-  duration: number;
-}): RabbitMqExchangeResultFailure {
-  return {
-    kind: "rabbitmq:exchange",
-    processed: false,
-    ok: false,
-    error: params.error,
-    duration: params.duration,
-  };
+export class RabbitMqQueueResultErrorImpl implements RabbitMqQueueResultError {
+  readonly kind = "rabbitmq:queue" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: RabbitMqOperationError;
+  readonly queue = null;
+  readonly messageCount = null;
+  readonly consumerCount = null;
+  readonly duration: number;
+
+  constructor(error: RabbitMqOperationError, duration: number) {
+    this.error = error;
+    this.duration = duration;
+  }
+}
+
+/**
+ * Implementation class for RabbitMqQueueResultFailure.
+ * @internal
+ */
+export class RabbitMqQueueResultFailureImpl
+  implements RabbitMqQueueResultFailure {
+  readonly kind = "rabbitmq:queue" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: RabbitMqFailureError;
+  readonly queue = null;
+  readonly messageCount = null;
+  readonly consumerCount = null;
+  readonly duration: number;
+
+  constructor(error: RabbitMqFailureError, duration: number) {
+    this.error = error;
+    this.duration = duration;
+  }
+}
+
+/**
+ * Implementation class for RabbitMqExchangeResultSuccess.
+ * @internal
+ */
+export class RabbitMqExchangeResultSuccessImpl
+  implements RabbitMqExchangeResultSuccess {
+  readonly kind = "rabbitmq:exchange" as const;
+  readonly processed = true as const;
+  readonly ok = true as const;
+  readonly error = null;
+  readonly duration: number;
+
+  constructor(duration: number) {
+    this.duration = duration;
+  }
+}
+
+/**
+ * Implementation class for RabbitMqExchangeResultError.
+ * @internal
+ */
+export class RabbitMqExchangeResultErrorImpl
+  implements RabbitMqExchangeResultError {
+  readonly kind = "rabbitmq:exchange" as const;
+  readonly processed = true as const;
+  readonly ok = false as const;
+  readonly error: RabbitMqOperationError;
+  readonly duration: number;
+
+  constructor(error: RabbitMqOperationError, duration: number) {
+    this.error = error;
+    this.duration = duration;
+  }
+}
+
+/**
+ * Implementation class for RabbitMqExchangeResultFailure.
+ * @internal
+ */
+export class RabbitMqExchangeResultFailureImpl
+  implements RabbitMqExchangeResultFailure {
+  readonly kind = "rabbitmq:exchange" as const;
+  readonly processed = false as const;
+  readonly ok = false as const;
+  readonly error: RabbitMqFailureError;
+  readonly duration: number;
+
+  constructor(error: RabbitMqFailureError, duration: number) {
+    this.error = error;
+    this.duration = duration;
+  }
 }
